@@ -1,0 +1,9 @@
+Alice Smith: Hey everyone, let's start the weekly sync. John, how is the Vite React setup going?
+John Doe: It is going well! I set up the core routing and layout. But wait, I'm waiting for Bob to finish the Socket.io gateway.
+Bob Johnson: I am almost done with the WebSocket gateway, but I might be delayed by 2 days because the server port configuration has some conflict.
+Alice Smith: Ah, that is a delay. Bob, can you work with John to troubleshoot this blocker tomorrow? We need this setup resolved by Friday.
+John Doe: Sure, I will join Bob tomorrow at 10 AM to debug the network ports.
+Alice Smith: Perfect. Also, John, you need to create the dashboard layout by Monday so we can demo it to the client.
+John Doe: Got it, I will write the React components for the meeting view and summary cards.
+Bob Johnson: I will write the Prisma schema for SQLite and generate local migrations.
+Alice Smith: Awesome. Make sure to document the environment variables in README as well, Bob.

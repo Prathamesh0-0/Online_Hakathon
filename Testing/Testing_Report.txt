@@ -1,0 +1,105 @@
+AI Meeting Copilot Testing Report
+
+
+Test 1: User Registration
+
+Action:
+Register a new user
+
+Expected:
+User should be saved in database
+
+Result:
+PASS
+
+
+Test 2: Login
+
+Action:
+Login using registered email/password
+
+Expected:
+Dashboard should open
+
+Result:
+PASS
+
+
+Test 3: Wrong Password
+
+Action:
+Enter wrong password
+
+Expected:
+Login should fail
+
+Result:
+PASS/FAIL
+
+
+Test 4: Create Meeting
+
+Action:
+Create a meeting
+
+Expected:
+Meeting appears in database
+
+Result:
+PASS
+
+
+Test 5: Transcript
+
+Action:
+Start meeting and generate transcript
+
+Expected:
+Transcript stored
+
+Result:
+PASS
+
+
+Test 6: AI Summary
+
+Action:
+Analyze meeting
+
+Expected:
+AI summary generated
+
+Result:
+PASS
+
+
+Security Test 1: Password Encryption
+Result: PASS ✅
+
+Security Test 2: Dashboard Protection
+
+Action:
+Opened dashboard URL without login
+
+Expected:
+Redirect to login
+
+Actual:
+Redirected to login
+
+Result:
+PASS ✅
+
+Security Test 3: API Protection
+
+Action:
+Accessed /meetings API without token
+
+Expected:
+Request should be rejected
+
+Actual:
+401 Unauthorized - Missing authentication token
+
+Result:
+PASS ✅

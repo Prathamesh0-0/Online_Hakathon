@@ -1,0 +1,19 @@
+{
+  "name": "ai-meeting-copilot-root",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "dev": "concurrently \"npm run start:backend\" \"npm run start:frontend\"",
+    "start:backend": "npm run start:dev --prefix backend",
+    "start:frontend": "npm run dev --prefix frontend",
+    "install:all": "pip install -r backend/requirements.txt && npm install --prefix frontend --legacy-peer-deps",
+    "build:all": "npm run build --prefix frontend"
+  },
+  "devDependencies": {
+    "concurrently": "^10.0.3"
+  },
+  "dependencies": {
+    "nodemailer": "^9.0.1",
+    "sarvamai": "^1.1.7"
+  }
+}
