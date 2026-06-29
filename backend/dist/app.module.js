@@ -15,6 +15,7 @@ const teams_module_1 = require("./teams/teams.module");
 const email_module_1 = require("./email/email.module");
 const integrations_module_1 = require("./integrations/integrations.module");
 const livekit_module_1 = require("./livekit/livekit.module");
+const recordings_module_1 = require("./recordings/recordings.module");
 let AppModule = class AppModule {
 };
 exports.AppModule = AppModule;
@@ -28,6 +29,7 @@ exports.AppModule = AppModule = __decorate([
             email_module_1.EmailModule,
             integrations_module_1.IntegrationsModule,
             livekit_module_1.LivekitModule,
+            recordings_module_1.RecordingsModule,
         ],
         controllers: [],
         providers: [],

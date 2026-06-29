@@ -303,11 +303,14 @@ export class MeetingsService {
       this.aiService.detectRisks(transcriptLines),
     ]);
 
-    // Save/update temporary action items & risks in real-time
-    await this.prisma.actionItem.deleteMany({ where: { meetingId } });
-    if (aiActionItems.length > 0) {
+    // Fetch existing action items and risks to prevent duplicate inserts and avoid deleting completed/synced items
+    const existingActionItems = await this.prisma.actionItem.findMany({ where: { meetingId } });
+    const existingActionTexts = new Set(existingActionItems.map(item => item.text.toLowerCase().trim()));
+
+    const newActionItems = aiActionItems.filter(item => !existingActionTexts.has(item.text.toLowerCase().trim()));
+    if (newActionItems.length > 0) {
       await this.prisma.actionItem.createMany({
-        data: aiActionItems.map(item => ({
+        data: newActionItems.map(item => ({
           meetingId,
           text: item.text,
           assigneeName: item.assigneeName || null,
@@ -317,10 +320,13 @@ export class MeetingsService {
       });
     }
 
-    await this.prisma.risk.deleteMany({ where: { meetingId } });
-    if (aiRisks.length > 0) {
+    const existingRisks = await this.prisma.risk.findMany({ where: { meetingId } });
+    const existingRiskTexts = new Set(existingRisks.map(risk => risk.text.toLowerCase().trim()));
+
+    const newRisks = aiRisks.filter(risk => !existingRiskTexts.has(risk.text.toLowerCase().trim()));
+    if (newRisks.length > 0) {
       await this.prisma.risk.createMany({
-        data: aiRisks.map(risk => ({
+        data: newRisks.map(risk => ({
           meetingId,
           text: risk.text,
           severity: risk.severity as RiskSeverity,
@@ -360,7 +366,7 @@ export class MeetingsService {
     });
   }
 
-  async syncActionItemToPlatform(actionItemId: string, platform: 'clickup' | 'trello') {
+  async syncActionItemToPlatform(actionItemId: string, platform: 'clickup') {
     const actionItem = await this.prisma.actionItem.findUnique({
       where: { id: actionItemId },
       include: { meeting: true },
@@ -378,8 +384,6 @@ export class MeetingsService {
     let res: any;
     if (platform === 'clickup') {
       res = await this.integrationsService.createClickUpTask(actionItem.text, taskNotes);
-    } else if (platform === 'trello') {
-      res = await this.integrationsService.createTrelloCard(actionItem.text, taskNotes);
     }
 
     if (res && res.status === 'error') {
@@ -475,7 +479,7 @@ export class MeetingsService {
     return this.aiService.translateText(text, sourceLang, targetLang);
   }
 
-  async answerMeetingQuestion(meetingId: string, question: string, askerName: string) {
+  async answerMeetingQuestion(meetingId: string, question: string, askerName: string, languageCode?: string) {
     const meeting = await this.prisma.meeting.findUnique({
       where: { id: meetingId },
       include: { transcripts: { orderBy: { timestamp: 'asc' } } },
@@ -485,7 +489,7 @@ export class MeetingsService {
     }
 
     const transcriptLines = meeting.transcripts.map(t => `${t.speakerName}: ${t.text}`);
-    const aiResult = await this.aiService.answerQuestion(meeting.title, transcriptLines, question);
+    const aiResult = await this.aiService.answerQuestion(meeting.title, transcriptLines, question, languageCode);
 
     const segment = await this.prisma.transcript.create({
       data: {
@@ -512,5 +516,12 @@ export class MeetingsService {
 
     const transcriptLines = meeting.transcripts.map(t => `${t.speakerName}: ${t.text}`);
     return this.aiService.answerQuestion(meeting.title, transcriptLines, question);
+  }
+
+  async updateActionItem(id: string, data: { assigneeName?: string; status?: any }) {
+    return this.prisma.actionItem.update({
+      where: { id },
+      data,
+    });
   }
 }

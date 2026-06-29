@@ -58,6 +58,14 @@ let MeetingsController = class MeetingsController {
             throw new common_1.HttpException(e.message, common_1.HttpStatus.BAD_REQUEST);
         }
     }
+    async updateActionItem(id, body) {
+        try {
+            return await this.meetingsService.updateActionItem(id, body);
+        }
+        catch (e) {
+            throw new common_1.HttpException(e.message, common_1.HttpStatus.BAD_REQUEST);
+        }
+    }
     async emailMeetingSummary(meetingId, req) {
         const userEmail = req.user.email || 'host@teamsspace.app';
         console.log(`Simulating sending meeting summary email for meeting ${meetingId} to host ${userEmail}`);
@@ -104,20 +112,18 @@ let MeetingsController = class MeetingsController {
                 catch { }
             }
             let speakerSentiments = {};
+            let talkTimeDistribution = {};
             if (meeting.analytics) {
                 try {
                     speakerSentiments = JSON.parse(meeting.analytics.speakerSentiment);
                 }
                 catch { }
+                try {
+                    talkTimeDistribution = JSON.parse(meeting.analytics.talkTimeDistribution);
+                }
+                catch { }
             }
-            else {
-                speakerSentiments = {
-                    'Alice Smith': 'Positive',
-                    'John Doe': 'Positive',
-                    'Bob Johnson': 'Concerned',
-                };
-            }
-            const html = this.buildPdfHtml(meeting, decisions, nextSteps, takeaways, meeting.actionItems || [], meeting.risks || [], speakerSentiments);
+            const html = this.buildPdfHtml(meeting, decisions, nextSteps, takeaways, meeting.actionItems || [], meeting.risks || [], speakerSentiments, talkTimeDistribution);
             res.setHeader('Content-Type', 'text/html');
             return res.status(common_1.HttpStatus.OK).send(html);
         }
@@ -128,197 +134,464 @@ let MeetingsController = class MeetingsController {
     async getMeetingAnalytics(meetingId) {
         return this.meetingsService.getMeetingAnalytics(meetingId);
     }
-    buildPdfHtml(meeting, decisions, nextSteps, takeaways, actionItems, risks, speakerSentiments) {
-        const actionItemsHtml = actionItems.length === 0
-            ? '<p>No action items assigned.</p>'
-            : `<ul>${actionItems.map(a => {
-                const dueStr = a.dueDate ? ` (Due: ${new Date(a.dueDate).toISOString().split('T')[0]})` : '';
-                const assignee = a.assigneeName || 'Unassigned';
-                return `<li><strong>${assignee}</strong>: ${a.text}${dueStr}</li>`;
-            }).join('')}</ul>`;
-        const risksHtml = risks.length === 0
-            ? '<p>No risks or blockers identified.</p>'
-            : risks.map(r => {
-                const severityClass = r.severity === 'HIGH' ? 'high' : r.severity === 'MEDIUM' ? 'med' : 'low';
-                return `<div style='margin-bottom:8px;'>⚠️ ${r.text} <span class='badge badge-${severityClass}'>${r.severity}</span></div>`;
-            }).join('');
-        const sentimentsHtml = !speakerSentiments || Object.keys(speakerSentiments).length === 0
-            ? '<p>No speaker sentiment log available.</p>'
-            : Object.entries(speakerSentiments).map(([name, sent]) => {
-                const sentStr = sent === 'Positive' ? 'Positive 😊' : sent === 'Concerned' ? 'Concerned ⚠️' : 'Neutral 😐';
-                return `<div class='sentiment-item'><span>${name}</span><span>${sentStr}</span></div>`;
-            }).join('');
+    buildPdfHtml(meeting, decisions, nextSteps, takeaways, actionItems, risks, speakerSentiments, talkTimeDistribution) {
+        const productivityScore = meeting.summary?.productivityScore ?? null;
+        const engagement = meeting.analytics?.engagementScore ?? null;
+        const sentimentScore = meeting.analytics?.sentimentScore ?? null;
+        const duration = meeting.analytics?.duration ?? 0;
+        const totalWords = meeting.analytics?.totalWords ?? 0;
+        const transcriptCount = meeting.transcripts?.length ?? 0;
         const formattedDate = meeting.createdAt
-            ? new Date(meeting.createdAt).toLocaleDateString('en-US', {
-                month: 'long',
-                day: 'numeric',
-                year: 'numeric',
-                hour: '2-digit',
-                minute: '2-digit',
-            })
+            ? new Date(meeting.createdAt).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric', hour: '2-digit', minute: '2-digit' })
             : 'Unknown Date';
-        return `
-    <!DOCTYPE html>
-    <html>
-    <head>
-        <title>${meeting.title} - Meeting Minutes Report</title>
-        <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Outfit:wght@600;700;800&display=swap" rel="stylesheet">
-        <style>
-            @media print {
-                body { -webkit-print-color-adjust: exact; }
-                .page-break { page-break-before: always; }
-            }
-            body {
-                font-family: 'Inter', sans-serif;
-                color: #0f172a;
-                line-height: 1.6;
-                padding: 40px;
-                max-width: 850px;
-                margin: 0 auto;
-                background-color: #f8fafc;
-            }
-            .report-container {
-                background: white;
-                border-radius: 12px;
-                box-shadow: 0 10px 25px rgba(0,0,0,0.05);
-                padding: 50px;
-            }
-            .header {
-                border-bottom: 3px solid #6366f1;
-                padding-bottom: 24px;
-                margin-bottom: 32px;
-                display: flex;
-                justify-content: space-between;
-                align-items: flex-end;
-            }
-            .title {
-                font-size: 32px;
-                font-family: 'Outfit', sans-serif;
-                font-weight: 800;
-                color: #1e1b4b;
-                margin: 0 0 12px 0;
-            }
-            .meta {
-                font-size: 14px;
-                color: #64748b;
-                display: flex;
-                flex-direction: column;
-                gap: 4px;
-            }
-            .brand {
-                font-family: 'Outfit', sans-serif;
-                font-size: 18px;
-                font-weight: 800;
-                color: #6366f1;
-            }
-            .section {
-                margin-bottom: 36px;
-                background: #fdfdfd;
-                border: 1px solid #e2e8f0;
-                border-radius: 8px;
-                padding: 24px;
-            }
-            .section-title {
-                font-size: 18px;
-                font-family: 'Outfit', sans-serif;
-                font-weight: 700;
-                color: #4338ca;
-                border-bottom: 2px solid #e0e7ff;
-                padding-bottom: 8px;
-                margin-bottom: 16px;
-                text-transform: uppercase;
-                letter-spacing: 0.05em;
-            }
-            ul, ol { padding-left: 24px; margin-top: 0; }
-            li { margin-bottom: 8px; }
-            .badge {
-                display: inline-block;
-                padding: 2px 8px;
-                border-radius: 12px;
-                font-size: 11px;
-                font-weight: 700;
-                text-transform: uppercase;
-            }
-            .badge-high { background: #fee2e2; color: #b91c1c; }
-            .badge-med { background: #fef3c7; color: #b45309; }
-            .badge-low { background: #e0e7ff; color: #4338ca; }
-            
-            .sentiment-grid {
-                display: grid;
-                grid-template-columns: repeat(2, 1fr);
-                gap: 12px;
-            }
-            .sentiment-item {
-                display: flex;
-                justify-content: space-between;
-                padding: 10px 16px;
-                background-color: #f1f5f9;
-                border-radius: 6px;
-                font-weight: 500;
-            }
-            .footer {
-                text-align: center;
-                margin-top: 40px;
-                padding-top: 20px;
-                border-top: 1px solid #e2e8f0;
-                font-size: 12px;
-                color: #94a3b8;
-            }
-        </style>
-    </head>
-    <body>
-        <div class="report-container">
-            <div class="header">
-                <div>
-                    <h1 class="title">${meeting.title}</h1>
-                    <div class="meta">
-                        <span><strong>Date:</strong> ${formattedDate}</span>
-                        <span><strong>Status:</strong> ${meeting.status}</span>
-                    </div>
-                </div>
-                <div class="brand">AI Meeting Copilot</div>
+        const formattedEnd = meeting.endTime
+            ? new Date(meeting.endTime).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })
+            : '—';
+        const durationStr = duration > 0 ? `${Math.floor(duration / 60)}m ${duration % 60}s` : (meeting.endTime && meeting.startTime ? `${Math.round((new Date(meeting.endTime).getTime() - new Date(meeting.startTime).getTime()) / 60000)} min` : '—');
+        const scoreGauge = (score, color) => {
+            const pct = Math.min(Math.max(score, 0), 100);
+            const r = 36;
+            const cx = 44;
+            const cy = 44;
+            const circumference = Math.PI * r;
+            const offset = circumference - (pct / 100) * circumference;
+            return `<svg width="88" height="52" viewBox="0 0 88 52">
+        <path d="M8,44 A36,36 0 0,1 80,44" fill="none" stroke="#e2e8f0" stroke-width="8" stroke-linecap="round"/>
+        <path d="M8,44 A36,36 0 0,1 80,44" fill="none" stroke="${color}" stroke-width="8" stroke-linecap="round"
+          stroke-dasharray="${circumference}" stroke-dashoffset="${offset}" style="transition:stroke-dashoffset 1s"/>
+        <text x="${cx}" y="${cy - 2}" text-anchor="middle" font-size="14" font-weight="800" fill="${color}">${pct}</text>
+        <text x="${cx}" y="${cy + 11}" text-anchor="middle" font-size="7" fill="#94a3b8">/ 100</text>
+      </svg>`;
+        };
+        const talkEntries = Object.entries(talkTimeDistribution || {});
+        const talkMax = talkEntries.length > 0 ? Math.max(...talkEntries.map(([, v]) => Number(v) || 0)) : 1;
+        const talkBarsHtml = talkEntries.length === 0
+            ? '<p style="color:#94a3b8;font-size:13px;">No talk time data available.</p>'
+            : talkEntries.map(([name, pct]) => {
+                const val = Number(pct) || 0;
+                const barW = talkMax > 0 ? Math.round((val / talkMax) * 100) : 0;
+                const hue = Math.round((talkEntries.indexOf([name, pct]) / talkEntries.length) * 280);
+                return `<div style="margin-bottom:10px;">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;">
+              <span style="font-size:13px;font-weight:600;color:#334155;">${name}</span>
+              <span style="font-size:12px;font-weight:700;color:#6366f1;">${val}%</span>
             </div>
-            
-            <div class="section">
-                <div class="section-title">Executive Summary</div>
-                <p style="font-size: 16px; font-weight: 500; color: #334155;">${meeting.summary?.overview || 'No summary available.'}</p>
+            <div style="background:#e2e8f0;border-radius:6px;height:10px;">
+              <div style="background:linear-gradient(90deg,#6366f1,#8b5cf6);height:10px;border-radius:6px;width:${barW}%;"></div>
             </div>
+          </div>`;
+            }).join('');
+        const sentimentEntries = Object.entries(speakerSentiments || {});
+        const sentimentsHtml = sentimentEntries.length === 0
+            ? '<p style="color:#94a3b8;font-size:13px;">No speaker sentiment data available.</p>'
+            : sentimentEntries.map(([name, sent]) => {
+                const isPos = sent === 'Positive';
+                const isCon = sent === 'Concerned' || sent === 'Negative';
+                const color = isPos ? '#10b981' : isCon ? '#ef4444' : '#f59e0b';
+                const emoji = isPos ? '😊' : isCon ? '⚠️' : '😐';
+                const label = isPos ? 'Positive' : isCon ? 'Concerned' : 'Neutral';
+                return `<div style="display:flex;justify-content:space-between;align-items:center;padding:10px 14px;background:#f8fafc;border-radius:8px;border:1px solid #e2e8f0;margin-bottom:8px;">
+            <span style="font-size:13px;font-weight:600;color:#334155;">${name}</span>
+            <span style="font-size:12px;font-weight:700;color:${color};background:${color}18;padding:3px 10px;border-radius:20px;">${emoji} ${label}</span>
+          </div>`;
+            }).join('');
+        const actionItemsHtml = actionItems.length === 0
+            ? '<p style="color:#94a3b8;font-size:13px;">No action items assigned.</p>'
+            : actionItems.map((a, i) => {
+                const dueStr = a.dueDate ? new Date(a.dueDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : 'No Deadline';
+                const assignee = a.assigneeName || 'Unassigned';
+                const statusColor = a.status === 'COMPLETED' ? '#10b981' : a.status === 'IN_PROGRESS' ? '#f59e0b' : '#6366f1';
+                const statusLabel = a.status || 'PENDING';
+                const extLink = a.externalUrl ? `<a href="${a.externalUrl}" style="color:#6366f1;font-size:11px;text-decoration:none;border:1px solid #e0e7ff;padding:2px 8px;border-radius:10px;" target="_blank">🔗 ${a.externalPlatform?.toUpperCase() || 'View'}</a>` : '';
+                return `<div style="display:flex;gap:14px;align-items:flex-start;padding:12px 14px;background:#f8fafc;border-radius:8px;border:1px solid #e2e8f0;margin-bottom:10px;">
+            <div style="background:#6366f118;color:#4338ca;font-weight:800;font-size:11px;border-radius:50%;width:24px;height:24px;display:flex;align-items:center;justify-content:center;flex-shrink:0;margin-top:1px;">${i + 1}</div>
+            <div style="flex:1;">
+              <div style="font-size:13px;font-weight:600;color:#0f172a;margin-bottom:5px;">${a.text}</div>
+              <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+                <span style="font-size:11px;color:#64748b;">👤 ${assignee}</span>
+                <span style="font-size:11px;color:#64748b;">📅 ${dueStr}</span>
+                <span style="font-size:11px;font-weight:700;color:${statusColor};background:${statusColor}18;padding:2px 8px;border-radius:10px;">${statusLabel}</span>
+                ${extLink}
+              </div>
+            </div>
+          </div>`;
+            }).join('');
+        const risksHtml = risks.length === 0
+            ? '<p style="color:#94a3b8;font-size:13px;">No risks or blockers identified.</p>'
+            : risks.map(r => {
+                const isHigh = r.severity === 'HIGH';
+                const isMed = r.severity === 'MEDIUM';
+                const color = isHigh ? '#ef4444' : isMed ? '#f59e0b' : '#6366f1';
+                const bg = isHigh ? '#fee2e218' : isMed ? '#fef3c718' : '#e0e7ff18';
+                return `<div style="display:flex;gap:12px;align-items:flex-start;padding:12px 14px;background:${bg};border-radius:8px;border:1px solid ${color}30;margin-bottom:10px;">
+            <span style="font-size:16px;flex-shrink:0;">⚠️</span>
+            <div style="flex:1;">
+              <div style="font-size:13px;color:#0f172a;font-weight:500;">${r.text}</div>
+              <span style="font-size:11px;font-weight:700;color:${color};background:${color}20;padding:2px 8px;border-radius:10px;margin-top:4px;display:inline-block;">${r.severity}</span>
+            </div>
+          </div>`;
+            }).join('');
+        const sentScoreColor = sentimentScore !== null ? (sentimentScore >= 0.6 ? '#10b981' : sentimentScore >= 0.3 ? '#f59e0b' : '#ef4444') : '#94a3b8';
+        const sentScoreLabel = sentimentScore !== null ? (sentimentScore >= 0.6 ? 'Positive' : sentimentScore >= 0.3 ? 'Neutral' : 'Negative') : '—';
+        return `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>${meeting.title} — Meeting Report</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Outfit:wght@600;700;800;900&display=swap" rel="stylesheet">
+  <style>
+    @media print {
+      body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+      .no-print { display: none !important; }
+      .page-break { page-break-before: always; }
+    }
+    *, *::before, *::after { box-sizing: border-box; }
+    body {
+      font-family: 'Inter', sans-serif;
+      color: #0f172a;
+      line-height: 1.65;
+      padding: 0;
+      margin: 0;
+      background: #f1f5f9;
+    }
+    .page-wrap {
+      max-width: 860px;
+      margin: 0 auto;
+      padding: 32px 20px;
+    }
+    .print-bar {
+      display: flex;
+      justify-content: flex-end;
+      gap: 10px;
+      margin-bottom: 20px;
+    }
+    .btn-print {
+      background: linear-gradient(135deg,#6366f1,#8b5cf6);
+      color: #fff;
+      border: none;
+      padding: 10px 22px;
+      border-radius: 8px;
+      font-size: 14px;
+      font-weight: 700;
+      cursor: pointer;
+      font-family: 'Inter', sans-serif;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .report {
+      background: #fff;
+      border-radius: 16px;
+      box-shadow: 0 8px 40px rgba(0,0,0,0.08);
+      overflow: hidden;
+    }
+    /* === HEADER === */
+    .report-header {
+      background: linear-gradient(135deg, #1e1b4b 0%, #312e81 50%, #4338ca 100%);
+      padding: 40px 48px 36px;
+      color: #fff;
+    }
+    .report-header-top {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      margin-bottom: 24px;
+    }
+    .brand-pill {
+      background: rgba(255,255,255,0.15);
+      backdrop-filter: blur(8px);
+      border: 1px solid rgba(255,255,255,0.25);
+      border-radius: 20px;
+      padding: 6px 14px;
+      font-family: 'Outfit', sans-serif;
+      font-size: 13px;
+      font-weight: 700;
+      letter-spacing: 0.04em;
+      color: #c7d2fe;
+    }
+    .status-badge {
+      background: rgba(16,185,129,0.2);
+      border: 1px solid rgba(16,185,129,0.4);
+      color: #6ee7b7;
+      border-radius: 20px;
+      padding: 4px 12px;
+      font-size: 11px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+    }
+    .meeting-title {
+      font-family: 'Outfit', sans-serif;
+      font-size: 34px;
+      font-weight: 900;
+      color: #fff;
+      margin: 0 0 10px;
+      line-height: 1.2;
+    }
+    .meeting-meta {
+      display: flex;
+      gap: 24px;
+      flex-wrap: wrap;
+    }
+    .meta-item {
+      font-size: 13px;
+      color: #c7d2fe;
+      display: flex;
+      align-items: center;
+      gap: 5px;
+    }
+    .meta-item strong { color: #e0e7ff; }
+    /* === SCORE CARDS === */
+    .score-cards {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 0;
+      border-bottom: 1px solid #e2e8f0;
+    }
+    .score-card {
+      padding: 24px 20px;
+      text-align: center;
+      border-right: 1px solid #e2e8f0;
+    }
+    .score-card:last-child { border-right: none; }
+    .score-label {
+      font-size: 11px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: #94a3b8;
+      margin-bottom: 8px;
+    }
+    .score-value {
+      font-family: 'Outfit', sans-serif;
+      font-size: 28px;
+      font-weight: 800;
+      line-height: 1;
+      margin-bottom: 4px;
+    }
+    .score-sub {
+      font-size: 11px;
+      color: #94a3b8;
+    }
+    /* === CONTENT === */
+    .content { padding: 36px 48px; }
+    .section {
+      margin-bottom: 32px;
+    }
+    .section-header {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 16px;
+      padding-bottom: 10px;
+      border-bottom: 2px solid #e0e7ff;
+    }
+    .section-icon {
+      width: 32px;
+      height: 32px;
+      border-radius: 8px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 15px;
+      flex-shrink: 0;
+    }
+    .section-title {
+      font-family: 'Outfit', sans-serif;
+      font-size: 15px;
+      font-weight: 800;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      color: #312e81;
+      margin: 0;
+    }
+    .summary-box {
+      background: linear-gradient(135deg, #eef2ff, #f5f3ff);
+      border: 1px solid #c7d2fe;
+      border-radius: 10px;
+      padding: 18px 22px;
+      font-size: 15px;
+      font-weight: 500;
+      color: #1e1b4b;
+      line-height: 1.7;
+    }
+    ul.styled { list-style: none; padding: 0; margin: 0; }
+    ul.styled li {
+      padding: 8px 0 8px 22px;
+      position: relative;
+      font-size: 13.5px;
+      color: #334155;
+      border-bottom: 1px solid #f1f5f9;
+    }
+    ul.styled li:last-child { border-bottom: none; }
+    ul.styled li::before {
+      content: '✓';
+      position: absolute;
+      left: 0;
+      color: #6366f1;
+      font-weight: 700;
+    }
+    .two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; }
+    .footer-report {
+      text-align: center;
+      padding: 24px 48px;
+      border-top: 1px solid #e2e8f0;
+      background: #f8fafc;
+    }
+    .footer-report p { font-size: 11.5px; color: #94a3b8; margin: 2px 0; }
+    .footer-brand { font-family: 'Outfit', sans-serif; font-weight: 800; color: #6366f1; font-size: 14px; }
+  </style>
+</head>
+<body>
+<div class="page-wrap">
+  <!-- Print / Download bar -->
+  <div class="print-bar no-print">
+    <button class="btn-print" onclick="window.print()">🖨️ Print / Save as PDF</button>
+  </div>
 
-            <div class="section">
-                <div class="section-title">Key Decisions</div>
-                <ul>
-                    ${decisions.length > 0 ? decisions.map(d => `<li>${d}</li>`).join('') : '<li>No major decisions recorded.</li>'}
-                </ul>
-            </div>
-            
-            <div class="section" style="border-left: 4px solid #6366f1;">
-                <div class="section-title">Action Items & Next Steps</div>
-                ${actionItemsHtml}
-            </div>
+  <div class="report">
+    <!-- ===== HEADER ===== -->
+    <div class="report-header">
+      <div class="report-header-top">
+        <span class="brand-pill">🤖 AI Meeting Copilot</span>
+        <span class="status-badge">${meeting.status}</span>
+      </div>
+      <h1 class="meeting-title">${meeting.title}</h1>
+      ${meeting.description ? `<p style="color:#a5b4fc;font-size:14px;margin:0 0 16px;">${meeting.description}</p>` : ''}
+      <div class="meeting-meta">
+        <div class="meta-item">📅 <strong>Date:</strong>&nbsp;${formattedDate}</div>
+        ${meeting.endTime ? `<div class="meta-item">⏱ <strong>Ended:</strong>&nbsp;${formattedEnd}</div>` : ''}
+        <div class="meta-item">💬 <strong>Transcript Lines:</strong>&nbsp;${transcriptCount}</div>
+        ${totalWords > 0 ? `<div class="meta-item">📝 <strong>Total Words:</strong>&nbsp;${totalWords.toLocaleString()}</div>` : ''}
+        ${meeting.host?.name ? `<div class="meta-item">👤 <strong>Host:</strong>&nbsp;${meeting.host.name}</div>` : ''}
+      </div>
+    </div>
 
-            <div class="page-break"></div>
+    <!-- ===== SCORE CARDS ===== -->
+    <div class="score-cards">
+      <div class="score-card">
+        <div class="score-label">Productivity</div>
+        ${productivityScore !== null
+            ? scoreGauge(productivityScore, '#6366f1')
+            : `<div class="score-value" style="color:#94a3b8;">—</div>`}
+        <div class="score-sub">AI Score</div>
+      </div>
+      <div class="score-card">
+        <div class="score-label">Engagement</div>
+        ${engagement !== null
+            ? scoreGauge(engagement, '#10b981')
+            : `<div class="score-value" style="color:#94a3b8;">—</div>`}
+        <div class="score-sub">Team Score</div>
+      </div>
+      <div class="score-card">
+        <div class="score-label">Overall Sentiment</div>
+        <div class="score-value" style="color:${sentScoreColor};font-size:22px;margin-top:8px;">${sentScoreLabel}</div>
+        <div class="score-sub">${sentimentScore !== null ? `Score: ${sentimentScore.toFixed(2)}` : 'No data'}</div>
+      </div>
+      <div class="score-card">
+        <div class="score-label">Duration</div>
+        <div class="score-value" style="color:#f59e0b;font-size:22px;margin-top:8px;">${durationStr}</div>
+        <div class="score-sub">${actionItems.length} Action Items · ${risks.length} Risks</div>
+      </div>
+    </div>
 
-            <div class="section" style="border-left: 4px solid #ef4444;">
-                <div class="section-title">Risks & Blockers</div>
-                ${risksHtml}
-            </div>
-            
-            <div class="section">
-                <div class="section-title">Speaker Sentiment Analysis</div>
-                <div class="sentiment-grid">
-                    ${sentimentsHtml}
-                </div>
-            </div>
+    <!-- ===== CONTENT ===== -->
+    <div class="content">
+
+      <!-- Executive Summary -->
+      <div class="section">
+        <div class="section-header">
+          <div class="section-icon" style="background:#eef2ff;">📋</div>
+          <h2 class="section-title">Executive Summary</h2>
         </div>
+        <div class="summary-box">
+          ${meeting.summary?.overview || '<em style="color:#94a3b8;">No AI summary generated for this meeting yet. End the meeting to generate it.</em>'}
+        </div>
+      </div>
 
-        <script>
-            window.onload = function() {
-                window.print();
-            };
-        </script>
-    </body>
-    </html>
-    `;
+      <!-- Two-column: Key Decisions + Key Takeaways -->
+      <div class="two-col">
+        <div class="section">
+          <div class="section-header">
+            <div class="section-icon" style="background:#ede9fe;">⚖️</div>
+            <h2 class="section-title">Key Decisions</h2>
+          </div>
+          ${decisions.length > 0
+            ? `<ul class="styled">${decisions.map(d => `<li>${d}</li>`).join('')}</ul>`
+            : '<p style="color:#94a3b8;font-size:13px;">No major decisions recorded.</p>'}
+        </div>
+        <div class="section">
+          <div class="section-header">
+            <div class="section-icon" style="background:#ecfdf5;">💡</div>
+            <h2 class="section-title">Key Takeaways</h2>
+          </div>
+          ${takeaways.length > 0
+            ? `<ul class="styled">${takeaways.map(t => `<li>${t}</li>`).join('')}</ul>`
+            : '<p style="color:#94a3b8;font-size:13px;">No takeaways recorded.</p>'}
+        </div>
+      </div>
+
+      <!-- Next Steps -->
+      ${nextSteps.length > 0 ? `
+      <div class="section">
+        <div class="section-header">
+          <div class="section-icon" style="background:#fef3c7;">➡️</div>
+          <h2 class="section-title">Next Steps</h2>
+        </div>
+        <ul class="styled">
+          ${nextSteps.map(s => `<li>${s}</li>`).join('')}
+        </ul>
+      </div>` : ''}
+
+      <!-- Action Items -->
+      <div class="section page-break">
+        <div class="section-header">
+          <div class="section-icon" style="background:#ede9fe;">✅</div>
+          <h2 class="section-title">Action Items (${actionItems.length})</h2>
+        </div>
+        ${actionItemsHtml}
+      </div>
+
+      <!-- Risks & Blockers -->
+      <div class="section">
+        <div class="section-header">
+          <div class="section-icon" style="background:#fee2e2;">🚨</div>
+          <h2 class="section-title">Risks & Blockers (${risks.length})</h2>
+        </div>
+        ${risksHtml}
+      </div>
+
+      <!-- Two-column: Talk Time + Speaker Sentiment -->
+      <div class="two-col">
+        <div class="section">
+          <div class="section-header">
+            <div class="section-icon" style="background:#e0e7ff;">🎙️</div>
+            <h2 class="section-title">Talk Time Distribution</h2>
+          </div>
+          ${talkBarsHtml}
+        </div>
+        <div class="section">
+          <div class="section-header">
+            <div class="section-icon" style="background:#ecfdf5;">😊</div>
+            <h2 class="section-title">Speaker Sentiment</h2>
+          </div>
+          ${sentimentsHtml}
+        </div>
+      </div>
+
+    </div>
+
+    <!-- ===== FOOTER ===== -->
+    <div class="footer-report">
+      <div class="footer-brand">AI Meeting Copilot</div>
+      <p>This report was automatically generated from meeting transcript data using AI analysis.</p>
+      <p>Generated on ${new Date().toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric', hour: '2-digit', minute: '2-digit' })}</p>
+    </div>
+  </div>
+</div>
+</body>
+</html>`;
     }
     async speak(body) {
         if (!body.text)
@@ -394,6 +667,14 @@ __decorate([
     __metadata("design:paramtypes", [String, String]),
     __metadata("design:returntype", Promise)
 ], MeetingsController.prototype, "syncActionItem", null);
+__decorate([
+    (0, common_1.Patch)('action-items/:id'),
+    __param(0, (0, common_1.Param)('id')),
+    __param(1, (0, common_1.Body)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String, Object]),
+    __metadata("design:returntype", Promise)
+], MeetingsController.prototype, "updateActionItem", null);
 __decorate([
     (0, common_1.Post)(':id/email-summary'),
     __param(0, (0, common_1.Param)('id')),

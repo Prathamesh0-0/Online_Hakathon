@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { io, Socket } from 'socket.io-client';
+import { API_URL } from '../config';
 import { Mic, MicOff, Clock, Play, Square, CheckSquare, AlertTriangle, AlertCircle, RefreshCw, Send, ExternalLink, Mail, FileText, Calendar, Copy, Video, VideoOff, Sparkles, PenTool, X, Monitor, MonitorOff, PictureInPicture, Maximize, Tv, MoreVertical, BarChart2 } from 'lucide-react';
 import { useWebRTC } from '../hooks/useWebRTC';
 import { useSpeechRecognition } from '../hooks/useSpeechRecognition';
@@ -68,7 +69,7 @@ export const MeetingView: React.FC<MeetingViewProps> = ({ token, meetingId, curr
     }
   };
 
-  const handleSyncTask = async (taskId: string, platform: 'clickup' | 'trello') => {
+  const handleSyncTask = async (taskId: string, platform: 'clickup') => {
     setSyncingTaskId(taskId);
     try {
       const response = await fetch(`http://localhost:5000/meetings/action-items/${taskId}/sync/${platform}`, {
@@ -158,8 +159,200 @@ export const MeetingView: React.FC<MeetingViewProps> = ({ token, meetingId, curr
   
   // Sarvam AI speech and translation states
   const [selectedLanguage, setSelectedLanguage] = useState('en-US');
-  const [isVoiceCopilotOn, setIsVoiceCopilotOn] = useState(false);
+  const [isVoiceCopilotOn, setIsVoiceCopilotOn] = useState(true);
   const [speakingText, setSpeakingText] = useState('');
+
+  const [isRecordingMeeting, setIsRecordingMeeting] = useState(false);
+  const [recordedVideoUrl, setRecordedVideoUrl] = useState<string | null>(null);
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const recordedChunksRef = useRef<Blob[]>([]);
+
+  const [showSaveAlert, setShowSaveAlert] = useState(false);
+
+  useEffect(() => {
+    const savedUrl = localStorage.getItem(`meeting_recording_${meetingId}`) || sessionStorage.getItem(`meeting_recording_${meetingId}`);
+    if (savedUrl) {
+      setRecordedVideoUrl(savedUrl);
+    }
+  }, [meetingId]);
+
+  const [isSavingRecording, setIsSavingRecording] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
+
+  const handleSaveRecordingToDashboard = async (e: React.MouseEvent) => {
+    e.preventDefault();
+    if (!recordedVideoUrl || isSavingRecording) return;
+
+    const randomPasscode = Math.floor(100000 + Math.random() * 900000).toString();
+    const passcode = window.prompt(
+      "Do you want to secure this recording with an access passcode? We have generated a random passcode for you. Click OK to use it, customize it, or clear/leave blank to make it public:",
+      randomPasscode
+    );
+    if (passcode === null) return; // cancelled saving
+
+    const cleanPasscode = passcode.trim();
+
+    setIsSavingRecording(true);
+    setSaveError(null);
+
+    try {
+      // 1. Fetch recording Blob
+      const blobResponse = await fetch(recordedVideoUrl);
+      const blob = await blobResponse.blob();
+
+      // 2. Prepare FormData payload
+      const formData = new FormData();
+      formData.append('video', blob, `meeting_recording_${meetingId}.webm`);
+      formData.append('meetingId', meetingId);
+      formData.append('meetingTitle', meeting?.title || 'Meeting Session');
+      formData.append('duration', String(meeting?.duration || Math.round(blob.size / 100000)));
+      formData.append('createdBy', currentUser?.name || 'User');
+      if (cleanPasscode) {
+        formData.append('accessCode', cleanPasscode);
+      }
+
+      // 3. Upload to backend
+      const response = await fetch('http://localhost:5000/recordings', {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${token}`
+        },
+        body: formData
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        // Flag as saved locally
+        localStorage.setItem(`saved_meeting_rec_${meetingId}`, 'true');
+        // If the URL from backend is returned, update it
+        if (data.fileUrl) {
+          localStorage.setItem(`meeting_recording_${meetingId}`, data.fileUrl);
+          setRecordedVideoUrl(data.fileUrl);
+        }
+
+        // Trigger success alert
+        setShowSaveAlert(true);
+        setTimeout(() => {
+          setShowSaveAlert(false);
+        }, 3000);
+
+        if (cleanPasscode) {
+          alert(`✅ Recording saved successfully! Secured with passcode: ${cleanPasscode}`);
+        }
+      } else {
+        setSaveError('Failed to save recording');
+        setTimeout(() => setSaveError(null), 3000);
+      }
+    } catch (err) {
+      console.error(err);
+      setSaveError('Failed to save recording');
+      setTimeout(() => setSaveError(null), 3000);
+    } finally {
+      setIsSavingRecording(false);
+    }
+  };
+
+  const handleToggleMeetingRecording = async () => {
+    if (isRecordingMeeting) {
+      if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
+        mediaRecorderRef.current.stop();
+      }
+      setIsRecordingMeeting(false);
+    } else {
+      recordedChunksRef.current = [];
+      try {
+        // 1. Capture screen/tab stream with audio (captures system audio + other participants + AI voice)
+        const displayStream = await navigator.mediaDevices.getDisplayMedia({
+          video: true,
+          audio: true
+        });
+
+        // 2. Mix Display Audio and Local Microphone Audio
+        const tracks: MediaStreamTrack[] = [];
+        
+        // Add video track
+        const videoTrack = displayStream.getVideoTracks()[0];
+        if (videoTrack) tracks.push(videoTrack);
+
+        try {
+          const audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
+          const dest = audioContext.createMediaStreamDestination();
+          let hasAudioSources = false;
+
+          // Connect display audio
+          if (displayStream.getAudioTracks().length > 0) {
+            const displaySource = audioContext.createMediaStreamSource(new MediaStream([displayStream.getAudioTracks()[0]]));
+            displaySource.connect(dest);
+            hasAudioSources = true;
+          }
+
+          // Connect local mic audio
+          let micStream = localStream;
+          if (!micStream || micStream.getAudioTracks().length === 0) {
+            try {
+              micStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+            } catch (micErr) {
+              console.warn('Microphone access not granted for recording mixing:', micErr);
+            }
+          }
+
+          if (micStream && micStream.getAudioTracks().length > 0) {
+            const micSource = audioContext.createMediaStreamSource(new MediaStream([micStream.getAudioTracks()[0]]));
+            micSource.connect(dest);
+            hasAudioSources = true;
+          }
+
+          if (hasAudioSources) {
+            const mixedAudioTrack = dest.stream.getAudioTracks()[0];
+            if (mixedAudioTrack) tracks.push(mixedAudioTrack);
+          } else {
+            if (displayStream.getAudioTracks().length > 0) {
+              tracks.push(displayStream.getAudioTracks()[0]);
+            }
+          }
+        } catch (audioMixError) {
+          console.warn('Failed to mix audio tracks, falling back to display audio', audioMixError);
+          if (displayStream.getAudioTracks().length > 0) {
+            tracks.push(displayStream.getAudioTracks()[0]);
+          }
+        }
+
+        const mixedStream = new MediaStream(tracks);
+        const options = { mimeType: 'video/webm; codecs=vp9' };
+        let recorder: MediaRecorder;
+        
+        try {
+          recorder = new MediaRecorder(mixedStream, options);
+        } catch (e) {
+          recorder = new MediaRecorder(mixedStream);
+        }
+
+        recorder.ondataavailable = (event) => {
+          if (event.data && event.data.size > 0) {
+            recordedChunksRef.current.push(event.data);
+          }
+        };
+
+        recorder.onstop = () => {
+          // Clean up and stop all tracks
+          mixedStream.getTracks().forEach(track => track.stop());
+          displayStream.getTracks().forEach(track => track.stop());
+          
+          const blob = new Blob(recordedChunksRef.current, { type: 'video/webm' });
+          const url = URL.createObjectURL(blob);
+          setRecordedVideoUrl(url);
+          sessionStorage.setItem(`meeting_recording_${meetingId}`, url);
+        };
+
+        mediaRecorderRef.current = recorder;
+        recorder.start(1000);
+        setIsRecordingMeeting(true);
+      } catch (err) {
+        console.error('Failed to start recording:', err);
+        alert('Could not start recording. Make sure you select a tab/screen to share and check the "Share audio" checkbox in the browser prompt.');
+      }
+    }
+  };
 
   const isVoiceCopilotOnRef = useRef(isVoiceCopilotOn);
   useEffect(() => {
@@ -185,6 +378,7 @@ export const MeetingView: React.FC<MeetingViewProps> = ({ token, meetingId, curr
         meetingId,
         question: qaInput.trim(),
         askerName: currentUser?.name || 'User',
+        languageCode: selectedLanguageRef.current,
       },
       (response: any) => {
         setQaLoading(false);
@@ -260,7 +454,8 @@ export const MeetingView: React.FC<MeetingViewProps> = ({ token, meetingId, curr
     meetingId,
     isMicOn,
     currentUser?.name || 'Unknown User',
-    selectedLanguage
+    selectedLanguage,
+    !!speakingText
   );
 
   const fetchAnalyticsData = async () => {
@@ -304,7 +499,7 @@ export const MeetingView: React.FC<MeetingViewProps> = ({ token, meetingId, curr
     fetchMeetingData();
 
     // 1. Establish Socket Connection
-    const socket = io('http://localhost:5000');
+    const socket = io(API_URL);
     socketRef.current = socket;
 
     socket.on('connect', () => {
@@ -385,8 +580,16 @@ export const MeetingView: React.FC<MeetingViewProps> = ({ token, meetingId, curr
       });
     });
 
-    socket.on('meetingEnded', () => {
+    socket.on('actionItemUpdated', (updatedItem: any) => {
+      setActionItems((prev) => prev.map(item => item.id === updatedItem.id ? updatedItem : item));
+    });
+
+    socket.on('meetingEnded', async () => {
       console.log('Meeting was ended by host.');
+      if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
+        mediaRecorderRef.current.stop();
+      }
+      setIsRecordingMeeting(false);
       setIsMicOn(false);
       setIsVideoOn(false);
       setIsScreenSharing(false);
@@ -432,6 +635,11 @@ export const MeetingView: React.FC<MeetingViewProps> = ({ token, meetingId, curr
   };
 
   const handleEndMeeting = async () => {
+    if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
+      mediaRecorderRef.current.stop();
+      setIsRecordingMeeting(false);
+      await new Promise(resolve => setTimeout(resolve, 500));
+    }
     setLoading(true);
     try {
       const response = await fetch(`http://localhost:5000/meetings/${meetingId}/end`, {
@@ -462,7 +670,7 @@ export const MeetingView: React.FC<MeetingViewProps> = ({ token, meetingId, curr
       setLoading(false);
     }
   };
-  // Play Sarvam AI TTS audio directly from base64 data (embedded in websocket events)
+
   const playBase64Audio = async (base64Audio: string, label: string = '') => {
     try {
       setSpeakingText(label || 'AI Copilot is speaking...');
@@ -481,31 +689,53 @@ export const MeetingView: React.FC<MeetingViewProps> = ({ token, meetingId, curr
   };
 
   const speakText = async (textToSpeak: string) => {
-    if (!textToSpeak.trim() || !token) return;
+    if (!textToSpeak.trim()) return;
     try {
       setSpeakingText(textToSpeak);
-      const response = await fetch('http://localhost:5000/meetings/speak', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({
-          text: textToSpeak,
-          languageCode: selectedLanguageRef.current,
-        }),
-      });
 
-      if (response.ok) {
-        const data = await response.json();
-        if (data.audioContent) {
-          const audioUrl = `data:audio/wav;base64,${data.audioContent}`;
-          const audio = new Audio(audioUrl);
-          audio.onended = () => setSpeakingText('');
-          await audio.play();
-        } else {
-          setSpeakingText('');
+      // Try backend Sarvam TTS first if token is available
+      if (token) {
+        try {
+          const response = await fetch('http://localhost:5000/meetings/speak', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              Authorization: `Bearer ${token}`,
+            },
+            body: JSON.stringify({
+              text: textToSpeak,
+              languageCode: selectedLanguageRef.current,
+            }),
+          });
+
+          if (response.ok) {
+            const data = await response.json();
+            if (data.audioContent) {
+              const audioUrl = `data:audio/wav;base64,${data.audioContent}`;
+              const audio = new Audio(audioUrl);
+              audio.onended = () => setSpeakingText('');
+              await audio.play();
+              return; // Successfully played backend TTS
+            }
+          }
+        } catch (backendErr) {
+          console.warn('Backend TTS failed, falling back to Web Speech API:', backendErr);
         }
+      }
+
+      // Web Speech API fallback (local browser TTS)
+      if ('speechSynthesis' in window) {
+        window.speechSynthesis.cancel();
+        const utterance = new SpeechSynthesisUtterance(textToSpeak);
+        const voices = window.speechSynthesis.getVoices();
+        const lang = selectedLanguageRef.current || 'en-US';
+        const matchingVoice = voices.find(v => v.lang.startsWith(lang.split('-')[0]));
+        if (matchingVoice) {
+          utterance.voice = matchingVoice;
+        }
+        utterance.onend = () => setSpeakingText('');
+        utterance.onerror = () => setSpeakingText('');
+        window.speechSynthesis.speak(utterance);
       } else {
         setSpeakingText('');
       }
@@ -526,7 +756,27 @@ export const MeetingView: React.FC<MeetingViewProps> = ({ token, meetingId, curr
   };
 
   if (loading && !meeting) {
-    return <p style={{ color: 'var(--text-secondary)' }}>Loading meeting space...</p>;
+    return <p style={{ color: 'var(--text-secondary)', padding: '20px' }}>Loading meeting space...</p>;
+  }
+
+  if (!meeting) {
+    return (
+      <div style={{ maxWidth: '600px', margin: '80px auto', textAlign: 'center', padding: '32px' }} className="glass-card">
+        <div style={{ fontSize: '3rem', marginBottom: '16px' }}>⚠️</div>
+        <h2 style={{ marginBottom: '12px', color: 'var(--text-primary)' }}>Failed to Connect to Meeting</h2>
+        <p style={{ color: 'var(--text-secondary)', marginBottom: '28px', lineHeight: '1.5' }}>
+          We couldn't fetch the meeting details. The backend server might still be restarting or offline.
+        </p>
+        <div style={{ display: 'flex', gap: '12px', justifyContent: 'center' }}>
+          <button className="btn btn-secondary" onClick={onBack}>
+            Back to Dashboard
+          </button>
+          <button className="btn btn-primary" style={{ display: 'flex', alignItems: 'center', gap: '6px' }} onClick={fetchMeetingData}>
+            <RefreshCw size={14} /> Retry Connection
+          </button>
+        </div>
+      </div>
+    );
   }
 
   return (
@@ -792,6 +1042,33 @@ export const MeetingView: React.FC<MeetingViewProps> = ({ token, meetingId, curr
                 🔊 Sarvam Voice: {isVoiceCopilotOn ? 'ON' : 'OFF'}
               </button>
 
+              <button
+                className={`btn ${isRecordingMeeting ? 'btn-danger' : 'btn-secondary'}`}
+                onClick={handleToggleMeetingRecording}
+                style={{
+                  height: '42px',
+                  padding: '0 18px',
+                  fontSize: '0.88rem',
+                  fontWeight: 600,
+                  whiteSpace: 'nowrap',
+                  border: isRecordingMeeting ? 'none' : '1px solid var(--border-color)',
+                  background: isRecordingMeeting ? '#ef4444' : 'rgba(255, 255, 255, 0.85)',
+                  color: isRecordingMeeting ? '#fff' : 'var(--text-primary)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '8px',
+                }}
+              >
+                <div style={{
+                  width: '10px',
+                  height: '10px',
+                  borderRadius: '50%',
+                  backgroundColor: isRecordingMeeting ? '#fff' : '#ef4444',
+                  animation: isRecordingMeeting ? 'pulse 1.2s infinite' : 'none'
+                }} />
+                {isRecordingMeeting ? 'Stop Recording' : 'Record Meeting'}
+              </button>
+
               <button 
                 className={`btn ${isVideoOn ? 'btn-primary' : 'btn-secondary'}`} 
                 onClick={() => setIsVideoOn(!isVideoOn)}
@@ -993,6 +1270,36 @@ export const MeetingView: React.FC<MeetingViewProps> = ({ token, meetingId, curr
               </button>
             )}
             
+            {recordedVideoUrl && (
+              <button 
+                onClick={handleSaveRecordingToDashboard}
+                disabled={isSavingRecording}
+                className="btn btn-secondary" 
+                style={{ gap: '6px', fontSize: '0.82rem', padding: '8px 16px', display: 'flex', alignItems: 'center' }} 
+              >
+                {isSavingRecording ? (
+                  <>
+                    <span 
+                      style={{
+                        width: '12px',
+                        height: '12px',
+                        border: '2px solid currentColor',
+                        borderRightColor: 'transparent',
+                        borderRadius: '50%',
+                        display: 'inline-block',
+                        animation: 'spin 1s linear infinite'
+                      }}
+                    />
+                    Saving Recording...
+                  </>
+                ) : (
+                  <>
+                    <Video size={14} style={{ color: 'var(--success)' }} /> Save Recording
+                  </>
+                )}
+              </button>
+            )}
+            
             <button className="btn btn-secondary" style={{ gap: '6px', fontSize: '0.82rem', padding: '8px 16px' }} onClick={handleScheduleFollowup}>
               <Calendar size={14} style={{ color: 'var(--primary)' }} /> Schedule Follow-up
             </button>
@@ -1131,6 +1438,87 @@ export const MeetingView: React.FC<MeetingViewProps> = ({ token, meetingId, curr
             )}
           </div>
 
+          {/* ─── SECTION 3: MEETING RECORDING PLAYBACK ─── */}
+          <div id="recording-section" style={{
+            background: 'linear-gradient(135deg, rgba(24, 40, 72, 0.04) 0%, rgba(24, 40, 72, 0.01) 100%)',
+            border: '1px solid var(--border-color)',
+            borderRadius: 'var(--radius-lg)',
+            padding: '28px 32px',
+            marginBottom: '20px',
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '20px' }}>
+              <div style={{
+                width: '36px', height: '36px', borderRadius: '10px',
+                background: 'linear-gradient(135deg, var(--primary) 0%, var(--primary-hover) 100%)',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                boxShadow: '0 4px 12px rgba(92, 107, 77, 0.3)',
+              }}>
+                <Video size={18} style={{ color: '#fff' }} />
+              </div>
+              <div>
+                <h2 style={{ fontSize: '1.3rem', margin: 0, fontWeight: 700 }}>Meeting Recording</h2>
+                <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', margin: 0 }}>Watch the session recording</p>
+              </div>
+            </div>
+
+            <div style={{ display: 'flex', gap: '24px', alignItems: 'flex-start', flexWrap: 'wrap' }}>
+              {recordedVideoUrl ? (
+                <>
+                  <div style={{ flex: 1, minWidth: '320px', borderRadius: 'var(--radius-md)', overflow: 'hidden', border: '1px solid var(--border-color)', background: '#000', aspectRatio: '16/9', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                    <video 
+                      src={recordedVideoUrl} 
+                      controls 
+                      style={{ width: '100%', height: '100%' }}
+                    />
+                  </div>
+                  <div style={{ width: '280px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                    <div style={{ background: 'rgba(255,255,255,0.5)', border: '1px solid var(--border-color)', borderRadius: 'var(--radius-md)', padding: '16px' }}>
+                      <h4 style={{ margin: '0 0 8px 0', fontSize: '0.9rem', fontWeight: 700 }}>Recording Info</h4>
+                      <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                        <div>
+                          <strong>Status:</strong>{' '}
+                          {localStorage.getItem(`saved_meeting_rec_${meetingId}`) === 'true' ? (
+                            <span style={{ color: 'var(--success)' }}>● Saved Successfully</span>
+                          ) : (
+                            <span style={{ color: 'var(--warning)' }}>● Unsaved Buffer</span>
+                          )}
+                        </div>
+                        <div><strong>Duration:</strong> {meeting?.duration ? `${Math.floor(meeting.duration / 60)}m ${meeting.duration % 60}s` : '3m 12s'}</div>
+                        <div><strong>Format:</strong> WebM (1080p)</div>
+                      </div>
+                    </div>
+                    <a 
+                      href={recordedVideoUrl} 
+                      download={`meeting_recording_${meetingId}.webm`}
+                      className="btn btn-primary"
+                      style={{ width: '100%', justifyContent: 'center', gap: '8px', textDecoration: 'none', padding: '10px 0', fontSize: '0.85rem', display: 'flex', alignItems: 'center' }}
+                    >
+                      📥 Download Recording
+                    </a>
+                  </div>
+                </>
+              ) : (
+                <div style={{
+                  flex: 1,
+                  padding: '40px',
+                  textAlign: 'center',
+                  background: 'rgba(255, 255, 255, 0.4)',
+                  border: '1px dashed var(--border-color)',
+                  borderRadius: 'var(--radius-md)',
+                  color: 'var(--text-muted)',
+                  width: '100%',
+                }}>
+                  <Video size={48} style={{ opacity: 0.3, marginBottom: '16px' }} />
+                  <h3 style={{ fontSize: '1.2rem', fontWeight: 700, color: 'var(--text-primary)' }}>No Video Recording Available</h3>
+                  <p style={{ fontSize: '0.85rem', marginTop: '6px', color: 'var(--text-secondary)' }}>
+                    No video recording was captured during this meeting session. 
+                    You can record future meetings using the "Record Meeting" button in the control bar.
+                  </p>
+                </div>
+              )}
+            </div>
+          </div>
+
           {/* ─── SECTION 2: ACTION ITEMS & RISKS (Side by Side) ─── */}
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px', marginBottom: '20px' }}>
             
@@ -1183,14 +1571,37 @@ export const MeetingView: React.FC<MeetingViewProps> = ({ token, meetingId, curr
                         <div style={{ flex: 1 }}>
                           <div style={{ fontSize: '0.88rem', fontWeight: 500, color: 'var(--text-primary)', lineHeight: '1.4' }}>{item.text}</div>
                           <div style={{ display: 'flex', gap: '8px', marginTop: '8px', flexWrap: 'wrap' }}>
-                            <span style={{
-                              background: 'rgba(92, 107, 77, 0.1)',
-                              color: 'var(--primary-hover)',
-                              padding: '2px 10px',
-                              borderRadius: '9999px',
-                              fontSize: '0.72rem',
-                              fontWeight: 600,
-                            }}>👤 {item.assigneeName || 'Unassigned'}</span>
+                            <select
+                              value={item.assigneeName || ''}
+                              onChange={(e) => {
+                                if (socketRef.current) {
+                                  socketRef.current.emit('updateActionItem', {
+                                    meetingId,
+                                    actionItemId: item.id,
+                                    assigneeName: e.target.value,
+                                  });
+                                }
+                              }}
+                              style={{
+                                background: 'rgba(92, 107, 77, 0.1)',
+                                color: 'var(--primary-hover)',
+                                padding: '2px 8px',
+                                borderRadius: '9999px',
+                                fontSize: '0.72rem',
+                                fontWeight: 600,
+                                border: 'none',
+                                outline: 'none',
+                                cursor: 'pointer',
+                              }}
+                            >
+                              <option value="">👤 Unassigned</option>
+                              {liveParticipants.map((p: any) => (
+                                <option key={p.socketId} value={p.name}>👤 {p.name}</option>
+                              ))}
+                              {item.assigneeName && !liveParticipants.some((p: any) => p.name === item.assigneeName) && (
+                                <option value={item.assigneeName}>👤 {item.assigneeName}</option>
+                              )}
+                            </select>
                             <span style={{
                               background: 'rgba(245, 158, 11, 0.1)',
                               color: '#f59e0b',
@@ -1217,17 +1628,14 @@ export const MeetingView: React.FC<MeetingViewProps> = ({ token, meetingId, curr
                             <ExternalLink size={10} /> {item.externalPlatform?.toUpperCase() || 'EXTERNAL'}
                           </a>
                         ) : (
-                          <select 
-                            className="input-field" 
-                            style={{ width: '110px', padding: '2px 6px', fontSize: '0.7rem', height: 'auto', background: 'rgba(255,255,255,0.5)', border: '1px solid var(--border-color)', borderRadius: '9999px', color: 'var(--text-primary)' }}
-                            onChange={(e) => { if (e.target.value) handleSyncTask(item.id, e.target.value as any); }}
+                          <button
+                            className="btn btn-secondary"
+                            style={{ padding: '2px 8px', fontSize: '0.7rem', height: 'auto', borderRadius: '9999px', background: 'rgba(255,255,255,0.5)', border: '1px solid var(--border-color)', color: 'var(--text-primary)' }}
+                            onClick={() => handleSyncTask(item.id, 'clickup')}
                             disabled={syncingTaskId === item.id}
-                            defaultValue=""
                           >
-                            <option value="" disabled>Platform...</option>
-                            <option value="clickup">ClickUp</option>
-                            <option value="trello">Trello</option>
-                          </select>
+                            Sync to ClickUp
+                          </button>
                         )}
                       </div>
                     </div>
@@ -2548,6 +2956,53 @@ export const MeetingView: React.FC<MeetingViewProps> = ({ token, meetingId, curr
         token={token}
         onClose={() => setShowEmailModal(false)}
       />
+    )}
+    {/* Recording Saved Alert */}
+    {showSaveAlert && (
+      <div style={{
+        position: 'fixed',
+        bottom: '24px',
+        right: '24px',
+        backgroundColor: '#ffffff',
+        borderLeft: '4px solid var(--success)',
+        padding: '16px 24px',
+        borderRadius: 'var(--radius-sm)',
+        boxShadow: '0 10px 30px rgba(0,0,0,0.15)',
+        zIndex: 10000,
+        display: 'flex',
+        alignItems: 'center',
+        gap: '12px',
+        animation: 'fade-in 0.3s ease'
+      }}>
+        <div style={{ fontSize: '1.2rem' }}>✅</div>
+        <div>
+          <strong style={{ display: 'block', fontSize: '0.9rem', color: 'var(--text-primary)' }}>Recording saved successfully!</strong>
+        </div>
+      </div>
+    )}
+
+    {/* Recording Save Error Alert */}
+    {saveError && (
+      <div style={{
+        position: 'fixed',
+        bottom: '24px',
+        right: '24px',
+        backgroundColor: '#ffffff',
+        borderLeft: '4px solid var(--danger)',
+        padding: '16px 24px',
+        borderRadius: 'var(--radius-sm)',
+        boxShadow: '0 10px 30px rgba(0,0,0,0.15)',
+        zIndex: 10000,
+        display: 'flex',
+        alignItems: 'center',
+        gap: '12px',
+        animation: 'fade-in 0.3s ease'
+      }}>
+        <div style={{ fontSize: '1.2rem' }}>❌</div>
+        <div>
+          <strong style={{ display: 'block', fontSize: '0.9rem', color: 'var(--text-primary)' }}>Failed to save recording. Please try again.</strong>
+        </div>
+      </div>
     )}
     </>
   );

@@ -5,69 +5,69 @@ export declare class TeamsService {
     private aiService;
     constructor(prisma: PrismaService, aiService: AiService);
     getTeams(userId: string): Promise<({
-        channels: {
-            id: string;
+        members: {
+            email: string;
             name: string;
+            id: string;
+        }[];
+        channels: {
+            name: string;
+            id: string;
             createdAt: Date;
             description: string | null;
             teamId: string;
         }[];
-        members: {
-            id: string;
-            email: string;
-            name: string;
-        }[];
     } & {
-        id: string;
         name: string;
+        id: string;
         createdAt: Date;
     })[]>;
     createTeam(userId: string, name: string): Promise<{
-        channels: {
-            id: string;
+        members: {
+            email: string;
             name: string;
+            id: string;
+        }[];
+        channels: {
+            name: string;
+            id: string;
             createdAt: Date;
             description: string | null;
             teamId: string;
         }[];
-        members: {
-            id: string;
-            email: string;
-            name: string;
-        }[];
     } & {
-        id: string;
         name: string;
+        id: string;
         createdAt: Date;
     }>;
     joinTeam(userId: string, teamId: string): Promise<{
-        channels: {
-            id: string;
+        members: {
+            email: string;
             name: string;
+            id: string;
+        }[];
+        channels: {
+            name: string;
+            id: string;
             createdAt: Date;
             description: string | null;
             teamId: string;
         }[];
-        members: {
-            id: string;
-            email: string;
-            name: string;
-        }[];
     } & {
-        id: string;
         name: string;
+        id: string;
         createdAt: Date;
     }>;
     createChannel(teamId: string, name: string, description?: string): Promise<{
-        id: string;
         name: string;
+        id: string;
         createdAt: Date;
         description: string | null;
         teamId: string;
     }>;
     getChannels(teamId: string): Promise<{
-        id: string;
         name: string;
+        id: string;
         createdAt: Date;
         description: string | null;
         teamId: string;
@@ -75,26 +75,26 @@ export declare class TeamsService {
     getChannelMessages(channelId: string): Promise<{
         id: string;
         createdAt: Date;
-        text: string;
         channelId: string;
-        senderId: string;
+        text: string;
         senderName: string;
+        senderId: string;
     }[]>;
     getAllUsers(userId: string): Promise<{
-        id: string;
         email: string;
         name: string;
+        id: string;
     }[]>;
     getDirectMessages(myId: string, userId: string): Promise<({
         sender: {
-            id: string;
             email: string;
             name: string;
+            id: string;
         };
         receiver: {
-            id: string;
             email: string;
             name: string;
+            id: string;
         };
     } & {
         id: string;

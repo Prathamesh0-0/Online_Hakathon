@@ -216,7 +216,9 @@ export class MeetingsGateway implements OnGatewayConnection, OnGatewayDisconnect
       setTimeout(async () => {
         try {
           this.logger.log(`Detected question in transcript for AI Copilot in meeting ${meetingId}: "${text}"`);
-          const aiSegment = await this.meetingsService.answerMeetingQuestion(meetingId, text, speakerName);
+          const result = await this.meetingsService.answerMeetingQuestion(meetingId, text, speakerName, languageCode);
+          const aiSegment = result.segment;
+          const diagram = result.diagram;
 
           // Generate Sarvam AI TTS audio for the AI response
           let ttsAudio = '';
@@ -228,6 +230,7 @@ export class MeetingsGateway implements OnGatewayConnection, OnGatewayDisconnect
 
           this.server.to(meetingId).emit('transcriptAdded', {
             ...aiSegment,
+            diagram,
             ttsAudio,
           });
         } catch (err: any) {
@@ -261,10 +264,10 @@ export class MeetingsGateway implements OnGatewayConnection, OnGatewayDisconnect
   @SubscribeMessage('askAiQuestion')
   async handleAskAiQuestion(
     @ConnectedSocket() client: Socket,
-    @MessageBody() data: { meetingId: string; question: string; askerName: string },
+    @MessageBody() data: { meetingId: string; question: string; askerName: string; languageCode?: string },
   ) {
-    const { meetingId, question, askerName } = data;
-    this.logger.log(`Direct Q&A in ${meetingId} from ${askerName}: "${question}"`);
+    const { meetingId, question, askerName, languageCode } = data;
+    this.logger.log(`Direct Q&A in ${meetingId} from ${askerName}: "${question}" (Lang: ${languageCode || 'default'})`);
 
     // 1. Save and emit the question itself as a transcript segment
     const questionSegment = await this.meetingsService.addTranscriptSegment(meetingId, askerName, question);
@@ -272,7 +275,7 @@ export class MeetingsGateway implements OnGatewayConnection, OnGatewayDisconnect
 
     try {
       // 2. Generate and save the AI Copilot response
-      const result = await this.meetingsService.answerMeetingQuestion(meetingId, question, askerName);
+      const result = await this.meetingsService.answerMeetingQuestion(meetingId, question, askerName, languageCode);
       const aiSegment = result.segment;
       const diagram = result.diagram;
 
@@ -404,5 +407,21 @@ export class MeetingsGateway implements OnGatewayConnection, OnGatewayDisconnect
       candidate: data.candidate,
       sender: client.id,
     });
+  }
+
+  @SubscribeMessage('updateActionItem')
+  async handleUpdateActionItem(
+    @ConnectedSocket() client: Socket,
+    @MessageBody() data: { meetingId: string; actionItemId: string; assigneeName: string },
+  ) {
+    const { meetingId, actionItemId, assigneeName } = data;
+    try {
+      const updated = await this.meetingsService.updateActionItem(actionItemId, { assigneeName });
+      this.server.to(meetingId).emit('actionItemUpdated', updated);
+      return { status: 'success', actionItem: updated };
+    } catch (e: any) {
+      this.logger.error(`Failed to update action item: ${e.message}`);
+      return { status: 'error', message: e.message };
+    }
   }
 }

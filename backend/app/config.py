@@ -38,11 +38,6 @@ class Settings(BaseSettings):
 
     # Third Party Integrations
     SLACK_WEBHOOK_URL: str = ""
-    JIRA_API_URL: str = ""
-    JIRA_EMAIL: str = ""
-    JIRA_API_TOKEN: str = ""
-    TRELLO_API_KEY: str = ""
-    TRELLO_TOKEN: str = ""
     CLICKUP_ACCESS_TOKEN: str = ""
     CLICKUP_LIST_ID: str = ""
     GOOGLE_CALENDAR_CREDENTIALS_JSON: str = ""

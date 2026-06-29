@@ -3,74 +3,74 @@ export declare class TeamsController {
     private readonly teamsService;
     constructor(teamsService: TeamsService);
     getTeams(req: any): Promise<({
-        channels: {
-            id: string;
+        members: {
+            email: string;
             name: string;
+            id: string;
+        }[];
+        channels: {
+            name: string;
+            id: string;
             createdAt: Date;
             description: string | null;
             teamId: string;
         }[];
-        members: {
-            id: string;
-            email: string;
-            name: string;
-        }[];
     } & {
-        id: string;
         name: string;
+        id: string;
         createdAt: Date;
     })[]>;
     createTeam(req: any, body: {
         name: string;
     }): Promise<{
-        channels: {
-            id: string;
+        members: {
+            email: string;
             name: string;
+            id: string;
+        }[];
+        channels: {
+            name: string;
+            id: string;
             createdAt: Date;
             description: string | null;
             teamId: string;
         }[];
-        members: {
-            id: string;
-            email: string;
-            name: string;
-        }[];
     } & {
-        id: string;
         name: string;
+        id: string;
         createdAt: Date;
     }>;
     joinTeam(req: any, id: string): Promise<{
-        channels: {
-            id: string;
+        members: {
+            email: string;
             name: string;
+            id: string;
+        }[];
+        channels: {
+            name: string;
+            id: string;
             createdAt: Date;
             description: string | null;
             teamId: string;
         }[];
-        members: {
-            id: string;
-            email: string;
-            name: string;
-        }[];
     } & {
-        id: string;
         name: string;
+        id: string;
         createdAt: Date;
     }>;
     createChannel(id: string, body: {
         name: string;
         description?: string;
     }): Promise<{
-        id: string;
         name: string;
+        id: string;
         createdAt: Date;
         description: string | null;
         teamId: string;
     }>;
     getChannels(id: string): Promise<{
-        id: string;
         name: string;
+        id: string;
         createdAt: Date;
         description: string | null;
         teamId: string;
@@ -78,26 +78,26 @@ export declare class TeamsController {
     getChannelMessages(id: string): Promise<{
         id: string;
         createdAt: Date;
-        text: string;
         channelId: string;
-        senderId: string;
+        text: string;
         senderName: string;
+        senderId: string;
     }[]>;
     getAllUsers(req: any): Promise<{
-        id: string;
         email: string;
         name: string;
+        id: string;
     }[]>;
     getDirectMessages(req: any, otherUserId: string): Promise<({
         sender: {
-            id: string;
             email: string;
             name: string;
+            id: string;
         };
         receiver: {
-            id: string;
             email: string;
             name: string;
+            id: string;
         };
     } & {
         id: string;

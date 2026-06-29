@@ -20,7 +20,10 @@ export const useWebRTC = (
     // Handle incoming WebRTC offers
     socket.on('webrtc_offer', async (data) => {
       const { sdp, sender } = data;
-      const pc = createPeerConnection(sender, socket);
+      let pc = peerConnections.current[sender];
+      if (!pc) {
+        pc = createPeerConnection(sender, socket);
+      }
       await pc.setRemoteDescription(new RTCSessionDescription(sdp));
       const answer = await pc.createAnswer();
       await pc.setLocalDescription(answer);
@@ -243,17 +246,27 @@ export const useWebRTC = (
           setLocalStream(stream);
           localStreamRef.current = stream;
 
-          // Replace tracks in existing peer connections
-          Object.values(peerConnections.current).forEach(pc => {
+          // Replace tracks in existing peer connections and renegotiate if adding a new track
+          Object.entries(peerConnections.current).forEach(([targetId, pc]) => {
             const senders = pc.getSenders();
+            let needsNegotiation = false;
             stream.getTracks().forEach(track => {
               const sender = senders.find(s => s.track && s.track.kind === track.kind);
               if (sender) {
                 sender.replaceTrack(track);
               } else {
                 pc.addTrack(track, stream);
+                needsNegotiation = true;
               }
             });
+            if (needsNegotiation) {
+              pc.createOffer().then(offer => {
+                pc.setLocalDescription(offer);
+                socket.emit('webrtc_offer', { target: targetId, sdp: offer, meetingId });
+              }).catch(err => {
+                console.error("Renegotiation offer creation failed", err);
+              });
+            }
           });
         }
       } catch (err) {

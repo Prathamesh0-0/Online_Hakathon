@@ -54,7 +54,7 @@ let EmailService = EmailService_1 = class EmailService {
             port: parseInt(process.env.SMTP_PORT || '587', 10),
             secure: false,
             auth: {
-                user: process.env.SMTP_USER || process.env.JIRA_EMAIL,
+                user: process.env.SMTP_USER,
                 pass: process.env.SMTP_PASS,
             },
         });
@@ -102,7 +102,7 @@ let EmailService = EmailService_1 = class EmailService {
     async sendMeetingInvite(dto) {
         console.log("sendMeetingInvite DTO received:", dto);
         const { recipientEmail, recipientName, meetingTitle, meetingCode, hostName, scheduledAt, joinLink, } = dto;
-        const senderEmail = process.env.SMTP_USER || process.env.JIRA_EMAIL || 'noreply@teamsspace.app';
+        const senderEmail = process.env.SMTP_USER || 'noreply@teamsspace.app';
         const formattedDate = scheduledAt
             ? new Date(scheduledAt).toLocaleString('en-US', {
                 weekday: 'long',

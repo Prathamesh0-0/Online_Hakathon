@@ -169,9 +169,9 @@ class AiService:
                 text = parts[1].strip() if len(parts) > 1 else line.strip()
                 
                 assignee = speaker
-                if "john" in clean_line: assignee = "John Doe"
-                elif "alice" in clean_line: assignee = "Alice Smith"
-                elif "bob" in clean_line: assignee = "Bob Johnson"
+                if "rahul" in clean_line: assignee = "Rahul Sharma"
+                elif "priya" in clean_line: assignee = "Priya Patel"
+                elif "aman" in clean_line: assignee = "Aman Verma"
 
                 if len(text) > 10:
                     actions.append({
@@ -183,9 +183,9 @@ class AiService:
         if not actions:
             # Return defaults
             actions = [
-                {"text": "Set up Prisma database schema and migrations", "assigneeName": "Alice Smith", "dueDate": (datetime.utcnow() + timedelta(days=1)).strftime("%Y-%m-%d")},
-                {"text": "Create real-time Socket.io gateway in backend", "assigneeName": "John Doe", "dueDate": (datetime.utcnow() + timedelta(days=2)).strftime("%Y-%m-%d")},
-                {"text": "Design Dashboard and Meeting Room components in React", "assigneeName": "Bob Johnson", "dueDate": (datetime.utcnow() + timedelta(days=4)).strftime("%Y-%m-%d")}
+                {"text": "Set up Prisma database schema and migrations", "assigneeName": "Rahul Sharma", "dueDate": (datetime.utcnow() + timedelta(days=1)).strftime("%Y-%m-%d")},
+                {"text": "Create real-time Socket.io gateway in backend", "assigneeName": "Aman Verma", "dueDate": (datetime.utcnow() + timedelta(days=2)).strftime("%Y-%m-%d")},
+                {"text": "Design Dashboard and Meeting Room components in React", "assigneeName": "Priya Patel", "dueDate": (datetime.utcnow() + timedelta(days=4)).strftime("%Y-%m-%d")}
             ]
         return actions
 

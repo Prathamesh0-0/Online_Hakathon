@@ -31,9 +31,7 @@ export const Integrations = ({ token }: { token: string }) => {
 
   const integrationItems = [
     { key: 'slack', name: 'Slack', description: 'Send meeting summaries to a Slack channel.' },
-    { key: 'jira', name: 'Jira', description: 'Create and sync action items with Jira tasks.' },
     { key: 'clickup', name: 'ClickUp', description: 'Create and sync action items with ClickUp tasks.' },
-    { key: 'trello', name: 'Trello', description: 'Create and sync action items with Trello cards.' },
   ];
 
   return (

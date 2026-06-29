@@ -128,15 +128,65 @@ export class AiService {
     }
   }
 
-  async answerQuestion(meetingTitle: string, transcriptLines: string[], question: string): Promise<{ answer: string; diagram?: any }> {
+  private getLanguageName(code?: string): string {
+    switch (code) {
+      case 'en-US': return 'English (US)';
+      case 'en-IN': return 'English (India)';
+      case 'hi-IN': return 'Hindi (हिंदी)';
+      case 'ta-IN': return 'Tamil (தமிழ்)';
+      case 'te-IN': return 'Telugu (తెలుగు)';
+      case 'kn-IN': return 'Kannada (ಕನ್ನಡ)';
+      case 'bn-IN': return 'Bengali (বাংলা)';
+      case 'mr-IN': return 'Marathi (มరాఠీ)';
+      case 'gu-IN': return 'Gujarati (ગુજરાતી)';
+      default: return 'English (India)';
+    }
+  }
+
+  async answerQuestion(meetingTitle: string, transcriptLines: string[], question: string, languageCode?: string): Promise<{ answer: string; diagram?: any }> {
     const fullTranscript = transcriptLines.join('\n');
     if (!this.sarvamApiKey) {
-      return this.getMockQuestionAnswer(question);
+      return this.getMockQuestionAnswer(question, transcriptLines);
     }
+
+    const selectedLanguage = this.getLanguageName(languageCode);
 
     try {
       const prompt = `
-        You are the AI Meeting Copilot assistant in the meeting titled "${meetingTitle}".
+        [SYSTEM DEFINITION - MANDATORY COMPLIANCE]
+        You are "AI Copilot", an intelligent AI Copilot integrated into an AI Meeting Copilot platform for the meeting titled "${meetingTitle}".
+        Your role is NOT limited to meeting assistance. You act as a complete AI assistant that helps users with meetings, learning, productivity, communication, and general knowledge.
+
+        [CORE RESPONSIBILITIES]
+        1. Meeting Assistant:
+           - Generate meeting summaries.
+           - Extract action items.
+           - Identify decisions and deadlines.
+           - Detect potential risks.
+           - Answer questions about current and previous meetings.
+           - Search meeting history.
+           - Explain meeting context using the Meeting Memory Graph.
+        2. General AI Assistant:
+           - Answer questions on any topic including Mathematics, Science, General Knowledge, Programming, Artificial Intelligence, Data Structures & Algorithms, Web Development, Cloud Computing, Finance, Communication Skills, English Grammar, Interview Preparation, Resume Review, Email Writing, Presentation Preparation, Career Guidance, Productivity Tips, Logical Reasoning, and Current Technology Concepts.
+
+        [CONVERSATION BEHAVIOR & RESPONSE STYLE]
+        - Maintain conversation context. Answer follow-up questions naturally.
+        - Ask clarifying questions only when necessary.
+        - Never invent facts or participant names. If information is unavailable, clearly state that.
+        - Be professional, friendly, and concise.
+        - Use simple language unless the user requests technical details.
+        - Format answers using headings, bullet points, tables, or code blocks when appropriate.
+        - Provide step-by-step explanations for technical or educational questions.
+
+        [PRIORITY RULES]
+        1. If the user asks about the current or previous meeting, prioritize meeting-related context.
+        2. Otherwise, behave as a full-featured AI assistant capable of answering any valid question across different domains.
+        3. Support both voice and text seamlessly, automatically adapting based on the microphone state (Voice Mode vs Silent Mode).
+
+        [CURRENT ACTIVE LANGUAGE]
+        Language Mode: ${selectedLanguage}
+        (You must reply EXCLUSIVELY in the language and script designated above. If English, reply in English text. If Hindi, reply in हिंदी text, etc.)
+
         Below is the transcript of what has been discussed so far in the meeting:
         ---
         ${fullTranscript || '(No discussion recorded yet)'}
@@ -145,15 +195,9 @@ export class AiService {
         A participant has just asked you this question:
         "${question}"
 
-        Please provide a concise, helpful, and polite response to their question.
-        Guidelines:
-        1. If the answer is in the transcript context, answer it using that context.
-        2. If the question asks about something outside the meeting or something you don't have access to (like external databases, current live internet data, or operations you can't perform), explain clearly and politely why you cannot answer it, and offer what you can help with.
-        3. If the user asks you to "draw", "generate a flowchart", "make a mindmap", "show a diagram", or similar visual drawings of a process discussed, you MUST also generate a "diagram" object matching the schema below. Otherwise, set "diagram" to null.
-        4. Keep your response very concise (maximum 3 sentences) and suitable for text-to-speech (voice-friendly, no markdown links, no special symbols).
-        5. Return the response as a JSON object matching this schema:
+        Return the response as a JSON object matching this schema:
         {
-          "answer": "your concise text answer here",
+          "answer": "your comprehensive response here (strictly in ${selectedLanguage}, formatted with markdown/headings/bullet points/code blocks/tables if appropriate)",
           "diagram": {
             "title": "Title of the diagram",
             "type": "flowchart" | "mindmap",
@@ -174,11 +218,11 @@ export class AiService {
       };
     } catch (error) {
       this.logger.error('Sarvam AI question answering failed. Falling back to Mock:', error);
-      return this.getMockQuestionAnswer(question);
+      return this.getMockQuestionAnswer(question, transcriptLines);
     }
   }
 
-  private getMockQuestionAnswer(question: string): { answer: string; diagram?: any } {
+  private getMockQuestionAnswer(question: string, transcriptLines: string[] = []): { answer: string; diagram?: any } {
     const cleanQ = question.toLowerCase();
     
     // Draw / Diagram Request
@@ -225,8 +269,78 @@ export class AiService {
         diagram: null
       };
     }
+
+    // Scan transcript lines for keywords in the user's question
+    if (transcriptLines && transcriptLines.length > 0) {
+      for (const line of transcriptLines) {
+        const parts = line.split(':');
+        if (parts.length > 1) {
+          const speaker = parts[0].trim();
+          const content = parts.slice(1).join(':').trim();
+          const words = cleanQ.split(/\s+/);
+          
+          const matchedKeyword = words.find(w => w.length > 3 && content.toLowerCase().includes(w));
+          if (matchedKeyword && !cleanQ.includes('assist') && !cleanQ.includes('help')) {
+            return {
+              answer: `During the meeting, ${speaker} mentioned: "${content}". I can help track this as an action item or summarize it for you.`,
+              diagram: null
+            };
+          }
+        }
+      }
+    }
+
+    // General assistant request or greetings
+    if (cleanQ.includes('assist') || cleanQ.includes('help') || cleanQ.includes('hi') || cleanQ.includes('hello') || cleanQ.includes('hey')) {
+      if (transcriptLines && transcriptLines.length > 0) {
+        // Find last discussed topic right before the wake-word call
+        let lastDiscussedLine = '';
+        for (let i = transcriptLines.length - 1; i >= 0; i--) {
+          const l = transcriptLines[i].toLowerCase();
+          if (!l.includes('copilot') && !l.includes('assist us') && !l.includes('assist me') && !l.includes('can you')) {
+            lastDiscussedLine = transcriptLines[i];
+            break;
+          }
+        }
+        
+        if (lastDiscussedLine) {
+          const parts = lastDiscussedLine.split(':');
+          const lastSpeaker = parts.length > 1 ? parts[0].trim() : 'a participant';
+          const lastTopic = parts.length > 1 ? parts.slice(1).join(':').trim() : lastDiscussedLine.trim();
+          
+          return {
+            answer: `Regarding the discussion about ${lastTopic} mentioned by ${lastSpeaker}, you should proceed with coordinating your tasks. I can help document these action items or create a visual diagram if you need them.`,
+            diagram: null
+          };
+        }
+      }
+      
+      return {
+        answer: 'I am here to assist you with the meeting. I can summarize discussions, track action items, or generate mindmaps and flowcharts.',
+        diagram: null
+      };
+    }
+
+    // Fallback smart generic summary answer based on transcript
+    if (transcriptLines && transcriptLines.length > 0) {
+      const topics = transcriptLines
+        .filter(line => line.includes(':') && line.length > 15)
+        .slice(-2)
+        .map(line => {
+          const parts = line.split(':');
+          return `"${parts.slice(1).join(':').trim()}" (discussed by ${parts[0].trim()})`;
+        });
+      
+      if (topics.length > 0) {
+        return {
+          answer: `Regarding your question, the current discussion includes: ${topics.join(' and ')}. I am tracking these points and will include them in the final action board.`,
+          diagram: null
+        };
+      }
+    }
+
     return {
-      answer: `I apologize, but I don't have the answer to your question: "${question}". I am running in mock mode and only have context about the team sync meeting.`,
+      answer: 'I am here to assist you with the meeting. I can summarize discussions, track action items, or generate mindmaps and flowcharts. What would you like to focus on?',
       diagram: null
     };
   }
@@ -512,7 +626,7 @@ export class AiService {
     ];
     const keyDecisions = [
       'Backend will be built using NestJS and unified under SQLite database.',
-      'External tasks will automatically sync to ClickUp and Trello.'
+      'External tasks will automatically sync to ClickUp.'
     ];
     const nextSteps = [
       'Alice to finalize schema migrations tomorrow morning.',
@@ -548,9 +662,9 @@ export class AiService {
         const text = parts.length > 1 ? parts.slice(1).join(':').trim() : line.trim();
 
         let assigneeName = speaker;
-        if (cleanLine.includes('john')) assigneeName = 'John Doe';
-        else if (cleanLine.includes('alice')) assigneeName = 'Alice Smith';
-        else if (cleanLine.includes('bob')) assigneeName = 'Bob Johnson';
+        if (cleanLine.includes('rahul')) assigneeName = 'Rahul Sharma';
+        else if (cleanLine.includes('priya')) assigneeName = 'Priya Patel';
+        else if (cleanLine.includes('aman')) assigneeName = 'Aman Verma';
 
         if (text.length > 10) {
           actions.push({
@@ -560,14 +674,6 @@ export class AiService {
           });
         }
       }
-    }
-
-    if (actions.length === 0) {
-      actions.push(
-        { text: 'Set up Prisma database schema and migrations', assigneeName: 'Alice Smith', dueDate: new Date(Date.now() + 1 * 24 * 60 * 60 * 1000).toISOString().split('T')[0] },
-        { text: 'Create real-time Socket.io gateway in backend', assigneeName: 'John Doe', dueDate: new Date(Date.now() + 2 * 24 * 60 * 60 * 1000).toISOString().split('T')[0] },
-        { text: 'Design Dashboard and Meeting Room components in React', assigneeName: 'Bob Johnson', dueDate: new Date(Date.now() + 4 * 24 * 60 * 60 * 1000).toISOString().split('T')[0] }
-      );
     }
 
     return actions;
@@ -632,13 +738,13 @@ export class AiService {
     }
 
     if (Object.keys(talkTime).length === 0) {
-      talkTime['Alice Smith'] = Math.round(durationSeconds * 0.4);
-      talkTime['John Doe'] = Math.round(durationSeconds * 0.3);
-      talkTime['Bob Johnson'] = Math.round(durationSeconds * 0.3);
+      talkTime['Rahul Sharma'] = Math.round(durationSeconds * 0.4);
+      talkTime['Aman Verma'] = Math.round(durationSeconds * 0.3);
+      talkTime['Priya Patel'] = Math.round(durationSeconds * 0.3);
       
-      speakerSent['Alice Smith'] = 'Positive';
-      speakerSent['John Doe'] = 'Positive';
-      speakerSent['Bob Johnson'] = 'Concerned';
+      speakerSent['Rahul Sharma'] = 'Positive';
+      speakerSent['Aman Verma'] = 'Positive';
+      speakerSent['Priya Patel'] = 'Concerned';
     }
 
     return {

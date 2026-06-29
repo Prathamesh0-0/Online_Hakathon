@@ -89,9 +89,9 @@ class LlmService:
         if "actionitems" in prompt_lower or "action_items" in prompt_lower or "todo" in prompt_lower:
             return {
                 "actionItems": [
-                    {"text": "Troubleshoot WebSocket port configuration conflicts", "assigneeName": "Bob Johnson", "dueDate": "2026-06-22"},
-                    {"text": "Assist in debugging backend network ports", "assigneeName": "John Doe", "dueDate": "2026-06-22"},
-                    {"text": "Create dashboard layout view and React components", "assigneeName": "John Doe", "dueDate": "2026-06-25"}
+                    {"text": "Troubleshoot WebSocket port configuration conflicts", "assigneeName": "Aman Verma", "dueDate": "2026-06-22"},
+                    {"text": "Assist in debugging backend network ports", "assigneeName": "Rahul Sharma", "dueDate": "2026-06-22"},
+                    {"text": "Create dashboard layout view and React components", "assigneeName": "Priya Patel", "dueDate": "2026-06-25"}
                 ]
             }
         
@@ -115,12 +115,12 @@ class LlmService:
                     "SQLite schema models are to be prepared and migrated locally by tomorrow."
                 ],
                 "keyDecisions": [
-                    "Bob and John will troubleshoot the websocket network ports tomorrow at 10 AM.",
-                    "John will build the dashboard layout by Monday."
+                    "Aman and Rahul will troubleshoot the websocket network ports tomorrow at 10 AM.",
+                    "Priya will build the dashboard layout by Monday."
                 ],
                 "nextSteps": [
-                    "Bob Johnson will fix port configuration settings.",
-                    "John Doe will construct dashboard layout components."
+                    "Aman Verma will fix port configuration settings.",
+                    "Priya Patel will construct dashboard layout components."
                 ],
                 "productivityScore": 85
             }
@@ -129,8 +129,8 @@ class LlmService:
         elif "follow" in prompt_lower:
             return {
                 "followUps": [
-                    {"text": "Send updated database schema docs to the team after migrations", "assigneeName": "Bob Johnson", "dueDate": "2026-06-22"},
-                    {"text": "Verify socket server deployment inside the docker container", "assigneeName": "Bob Johnson", "dueDate": "2026-06-23"}
+                    {"text": "Send updated database schema docs to the team after migrations", "assigneeName": "Aman Verma", "dueDate": "2026-06-22"},
+                    {"text": "Verify socket server deployment inside the docker container", "assigneeName": "Aman Verma", "dueDate": "2026-06-23"}
                 ]
             }
  
@@ -140,16 +140,16 @@ class LlmService:
                 "duration": 300,
                 "totalWords": 185,
                 "talkTimeDistribution": {
-                    "Alice Smith": 95,
-                    "John Doe": 45,
-                    "Bob Johnson": 45
+                    "Rahul Sharma": 95,
+                    "Aman Verma": 45,
+                    "Priya Patel": 45
                 },
                 "sentimentScore": 0.35,
                 "engagementScore": 92,
                 "speakerSentiment": {
-                    "Alice Smith": "Positive",
-                    "John Doe": "Neutral",
-                    "Bob Johnson": "Concerned"
+                    "Rahul Sharma": "Positive",
+                    "Aman Verma": "Neutral",
+                    "Priya Patel": "Concerned"
                 }
             }
 

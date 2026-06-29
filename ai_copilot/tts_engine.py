@@ -1,14 +1,13 @@
 import os
-import requests
-import base64
 import pygame
 import time
 from dotenv import load_dotenv
+from sarvamai import SarvamAI
+from sarvamai.play import save
 
 load_dotenv()
 
 SARVAM_API_KEY = os.getenv("SARVAM_API_KEY")
-TTS_URL = "https://api.sarvam.ai/text-to-speech"
 
 def speak(text: str, language_code: str = "hi-IN"):
     """
@@ -20,48 +19,35 @@ def speak(text: str, language_code: str = "hi-IN"):
         return
 
     print(f"[AI]: {text}")
-    
-    payload = {
-        "text": text,
-        "target_language_code": language_code,
-        "speaker": "meera",
-        "model": "bulbul:v3"
-    }
-    
-    headers = {
-        "api-subscription-key": SARVAM_API_KEY,
-        "Content-Type": "application/json"
-    }
 
     try:
-        response = requests.post(TTS_URL, json=payload, headers=headers)
-        response.raise_for_status()
+        # Initialize client with api_subscription_key
+        client = SarvamAI(api_subscription_key=SARVAM_API_KEY)
         
-        data = response.json()
-        if "audios" in data and len(data["audios"]) > 0:
-            audio_base64 = data["audios"][0]
-            audio_bytes = base64.b64decode(audio_base64)
+        # Convert text to speech
+        audio = client.text_to_speech.convert(
+            text=text,
+            target_language_code=language_code,
+            model="bulbul:v3",
+            speaker="meera"
+        )
+        
+        temp_audio_file = "temp_response.wav"
+        save(audio, temp_audio_file)
+        
+        # Play the audio using pygame
+        pygame.mixer.init(frequency=8000)
+        pygame.mixer.music.load(temp_audio_file)
+        pygame.mixer.music.play()
+        
+        while pygame.mixer.music.get_busy():
+            time.sleep(0.1)
             
-            # Save temporary audio file
-            temp_audio_file = "temp_response.wav"
-            with open(temp_audio_file, "wb") as f:
-                f.write(audio_bytes)
-                
-            # Play the audio using pygame
-            pygame.mixer.init(frequency=8000)
-            pygame.mixer.music.load(temp_audio_file)
-            pygame.mixer.music.play()
-            
-            while pygame.mixer.music.get_busy():
-                time.sleep(0.1)
-                
-            pygame.mixer.quit()
-            
-            # Clean up temp file
-            if os.path.exists(temp_audio_file):
-                os.remove(temp_audio_file)
-        else:
-            print("[TTS Error]: No audio returned from Sarvam API.")
+        pygame.mixer.quit()
+        
+        # Clean up temp file
+        if os.path.exists(temp_audio_file):
+            os.remove(temp_audio_file)
             
     except Exception as e:
         print(f"[TTS Error]: Failed to synthesize speech: {e}")

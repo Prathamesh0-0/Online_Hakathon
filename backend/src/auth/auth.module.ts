@@ -8,7 +8,6 @@ import { AuthController } from './auth.controller';
     JwtModule.register({
       global: true,
       secret: process.env.JWT_SECRET || 'super-secret-copilot-key-change-in-production',
-      signOptions: { expiresIn: '365d' },
     }),
   ],
   providers: [AuthService],

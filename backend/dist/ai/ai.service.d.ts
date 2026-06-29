@@ -6,7 +6,8 @@ export declare class AiService {
     private parseJson;
     generateSpeech(text: string, languageCode?: string): Promise<string>;
     translateText(text: string, sourceLang: string, targetLang?: string): Promise<string>;
-    answerQuestion(meetingTitle: string, transcriptLines: string[], question: string): Promise<{
+    private getLanguageName;
+    answerQuestion(meetingTitle: string, transcriptLines: string[], question: string, languageCode?: string): Promise<{
         answer: string;
         diagram?: any;
     }>;

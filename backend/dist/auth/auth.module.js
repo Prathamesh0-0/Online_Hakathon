@@ -20,7 +20,6 @@ exports.AuthModule = AuthModule = __decorate([
             jwt_1.JwtModule.register({
                 global: true,
                 secret: process.env.JWT_SECRET || 'super-secret-copilot-key-change-in-production',
-                signOptions: { expiresIn: '365d' },
             }),
         ],
         providers: [auth_service_1.AuthService],

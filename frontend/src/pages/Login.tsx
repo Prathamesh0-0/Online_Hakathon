@@ -1,4 +1,5 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import { useLocation } from 'react-router-dom';
 import { LogIn, UserPlus, Sparkles, Video } from 'lucide-react';
 
 interface LoginProps {
@@ -6,12 +7,17 @@ interface LoginProps {
 }
 
 export const Login: React.FC<LoginProps> = ({ onLogin }) => {
-  const [isRegister, setIsRegister] = useState(false);
+  const location = useLocation();
+  const [isRegister, setIsRegister] = useState(location.pathname === '/register');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [name, setName] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    setIsRegister(location.pathname === '/register');
+  }, [location]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();

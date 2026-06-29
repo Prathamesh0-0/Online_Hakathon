@@ -10,7 +10,7 @@ export const Tasks: React.FC<TasksProps> = ({ token }) => {
   const [loading, setLoading] = useState(true);
   const [syncingTaskId, setSyncingTaskId] = useState<string | null>(null);
 
-  const handleSyncTask = async (taskId: string, platform: 'clickup' | 'trello') => {
+  const handleSyncTask = async (taskId: string, platform: 'clickup') => {
     setSyncingTaskId(taskId);
     try {
       const response = await fetch(`http://localhost:5000/meetings/action-items/${taskId}/sync/${platform}`, {
@@ -139,9 +139,39 @@ export const Tasks: React.FC<TasksProps> = ({ token }) => {
                   >
                     {/* Rich Flow-style Layout */}
                     <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap', fontSize: '0.9rem', marginBottom: '12px' }}>
-                      <span style={{ background: 'rgba(92, 107, 77, 0.12)', color: 'var(--primary-hover)', padding: '2px 10px', borderRadius: '9999px', fontWeight: 600 }}>
-                        {task.assigneeName || 'Unassigned'}
-                      </span>
+                      <input
+                        type="text"
+                        value={task.assigneeName || ''}
+                        placeholder="Unassigned"
+                        onChange={async (e) => {
+                          const newName = e.target.value;
+                          setTasks(prev => prev.map(t => t.id === task.id ? { ...t, assigneeName: newName } : t));
+                          try {
+                            await fetch(`http://localhost:5000/meetings/action-items/${task.id}`, {
+                              method: 'PATCH',
+                              headers: {
+                                'Content-Type': 'application/json',
+                                Authorization: `Bearer ${token}`
+                              },
+                              body: JSON.stringify({ assigneeName: newName })
+                            });
+                          } catch (err) {
+                            console.error(err);
+                          }
+                        }}
+                        style={{
+                          background: 'rgba(92, 107, 77, 0.12)',
+                          color: 'var(--primary-hover)',
+                          padding: '2px 10px',
+                          borderRadius: '9999px',
+                          fontWeight: 600,
+                          border: 'none',
+                          outline: 'none',
+                          fontSize: '0.85rem',
+                          width: '110px',
+                          textAlign: 'center'
+                        }}
+                      />
                       <span style={{ color: 'var(--text-muted)' }}>&rarr;</span>
                       <span style={{ color: 'var(--text-primary)', fontWeight: 500, flex: 1, minWidth: '150px' }}>
                         {task.text}
@@ -178,21 +208,14 @@ export const Tasks: React.FC<TasksProps> = ({ token }) => {
                             <ExternalLink size={10} /> {task.externalPlatform ? task.externalPlatform.toUpperCase() : 'EXTERNAL'}
                           </a>
                         ) : (
-                          <select 
-                            className="input-field" 
-                            style={{ width: '120px', padding: '3px 8px', fontSize: '0.75rem', height: 'auto', background: 'rgba(255,255,255,0.03)', border: '1px solid var(--border-color)', borderRadius: '9999px', color: 'var(--text-primary)' }}
-                            onChange={(e) => {
-                              if (e.target.value) {
-                                handleSyncTask(task.id, e.target.value as any);
-                              }
-                            }}
+                          <button
+                            className="btn btn-secondary"
+                            style={{ padding: '3px 12px', fontSize: '0.75rem', height: 'auto', borderRadius: '9999px', background: 'rgba(255,255,255,0.03)', border: '1px solid var(--border-color)', color: 'var(--text-primary)' }}
+                            onClick={() => handleSyncTask(task.id, 'clickup')}
                             disabled={syncingTaskId === task.id}
-                            defaultValue=""
                           >
-                            <option value="" disabled>Select platform...</option>
-                            <option value="clickup">ClickUp</option>
-                            <option value="trello">Trello</option>
-                          </select>
+                            Sync to ClickUp
+                          </button>
                         )}
                       </div>
                     </div>
@@ -239,9 +262,39 @@ export const Tasks: React.FC<TasksProps> = ({ token }) => {
                   >
                     {/* Rich Flow-style Layout */}
                     <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap', fontSize: '0.9rem', marginBottom: '12px', opacity: 0.8 }}>
-                      <span style={{ background: 'rgba(92, 107, 77, 0.12)', color: 'var(--primary-hover)', padding: '2px 10px', borderRadius: '9999px', fontWeight: 600 }}>
-                        {task.assigneeName || 'Unassigned'}
-                      </span>
+                      <input
+                        type="text"
+                        value={task.assigneeName || ''}
+                        placeholder="Unassigned"
+                        onChange={async (e) => {
+                          const newName = e.target.value;
+                          setTasks(prev => prev.map(t => t.id === task.id ? { ...t, assigneeName: newName } : t));
+                          try {
+                            await fetch(`http://localhost:5000/meetings/action-items/${task.id}`, {
+                              method: 'PATCH',
+                              headers: {
+                                'Content-Type': 'application/json',
+                                Authorization: `Bearer ${token}`
+                              },
+                              body: JSON.stringify({ assigneeName: newName })
+                            });
+                          } catch (err) {
+                            console.error(err);
+                          }
+                        }}
+                        style={{
+                          background: 'rgba(92, 107, 77, 0.12)',
+                          color: 'var(--primary-hover)',
+                          padding: '2px 10px',
+                          borderRadius: '9999px',
+                          fontWeight: 600,
+                          border: 'none',
+                          outline: 'none',
+                          fontSize: '0.85rem',
+                          width: '110px',
+                          textAlign: 'center'
+                        }}
+                      />
                       <span style={{ color: 'var(--text-muted)' }}>&rarr;</span>
                       <span style={{ color: 'var(--text-primary)', fontWeight: 500, flex: 1, minWidth: '150px', textDecoration: 'line-through' }}>
                         {task.text}
@@ -278,21 +331,14 @@ export const Tasks: React.FC<TasksProps> = ({ token }) => {
                             <ExternalLink size={10} /> {task.externalPlatform ? task.externalPlatform.toUpperCase() : 'EXTERNAL'}
                           </a>
                         ) : (
-                          <select 
-                            className="input-field" 
-                            style={{ width: '120px', padding: '3px 8px', fontSize: '0.75rem', height: 'auto', background: 'rgba(255,255,255,0.03)', border: '1px solid var(--border-color)', borderRadius: '9999px', color: 'var(--text-primary)' }}
-                            onChange={(e) => {
-                              if (e.target.value) {
-                                handleSyncTask(task.id, e.target.value as any);
-                              }
-                            }}
+                          <button
+                            className="btn btn-secondary"
+                            style={{ padding: '3px 12px', fontSize: '0.75rem', height: 'auto', borderRadius: '9999px', background: 'rgba(255,255,255,0.03)', border: '1px solid var(--border-color)', color: 'var(--text-primary)' }}
+                            onClick={() => handleSyncTask(task.id, 'clickup')}
                             disabled={syncingTaskId === task.id}
-                            defaultValue=""
                           >
-                            <option value="" disabled>Select platform...</option>
-                            <option value="clickup">ClickUp</option>
-                            <option value="trello">Trello</option>
-                          </select>
+                            Sync to ClickUp
+                          </button>
                         )}
                       </div>
                     </div>

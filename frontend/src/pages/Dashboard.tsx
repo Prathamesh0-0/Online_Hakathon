@@ -11,6 +11,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ token, onSelectMeeting }) 
   const navigate = useNavigate();
   const [meetings, setMeetings] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [savedRecordingMeetingIds, setSavedRecordingMeetingIds] = useState<string[]>([]);
   
   const [activeTab, setActiveTab] = useState<'upcoming' | 'past'>('upcoming');
   const [quickJoinCode, setQuickJoinCode] = useState('');
@@ -24,8 +25,17 @@ export const Dashboard: React.FC<DashboardProps> = ({ token, onSelectMeeting }) 
       if (response.ok) {
         setMeetings(data);
       }
+
+      // Fetch recordings
+      const recResponse = await fetch('http://localhost:5000/recordings', {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (recResponse.ok) {
+        const recData = await recResponse.json();
+        setSavedRecordingMeetingIds(recData.map((r: any) => r.meetingId));
+      }
     } catch (err) {
-      console.error('Failed to fetch meetings', err);
+      console.error('Failed to fetch dashboard data', err);
     } finally {
       setLoading(false);
     }
@@ -308,6 +318,11 @@ const MeetingRow: React.FC<{ meeting: any; onSelect: (id: string) => void }> = (
             <span style={{ color: 'var(--success)', display: 'inline-flex', alignItems: 'center', gap: '4px', fontWeight: 500 }}>
               <span className="pulse-indicator active" style={{ width: '6px', height: '6px', margin: 0 }} />
               AI Summary Generated (Productivity: {meeting.summary.productivityScore}%)
+            </span>
+          )}
+          {meeting.status === 'COMPLETED' && (savedRecordingMeetingIds.includes(meeting.id) || localStorage.getItem(`saved_meeting_rec_${meeting.id}`) === 'true') && (
+            <span style={{ color: 'var(--primary-hover)', display: 'inline-flex', alignItems: 'center', gap: '6px', fontWeight: 600, background: 'rgba(92, 107, 77, 0.08)', padding: '2px 8px', borderRadius: '4px' }}>
+              <Video size={12} /> Video Recording Saved
             </span>
           )}
           {meeting.code && meeting.status !== 'COMPLETED' && (

@@ -25,17 +25,26 @@ export const CreateMeeting: React.FC<CreateMeetingProps> = ({ token }) => {
     e.preventDefault();
     setLoading(true);
     setError('');
+
+    // Always read the freshest token directly from localStorage to avoid stale prop
+    const authToken = localStorage.getItem('token') || token;
+
+    if (!authToken || authToken === 'null' || authToken === 'undefined') {
+      setError('You must be logged in to schedule a meeting. Please log in and try again.');
+      setLoading(false);
+      return;
+    }
     
     try {
       const response = await fetch('http://localhost:5000/meetings', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
+          Authorization: `Bearer ${authToken}`,
         },
         body: JSON.stringify({
           title,
-          description, // Maps to meeting agenda
+          description,
           startTime: startTime || undefined,
           invitedEmails,
         }),
@@ -43,6 +52,12 @@ export const CreateMeeting: React.FC<CreateMeetingProps> = ({ token }) => {
 
       const data = await response.json();
       if (!response.ok) {
+        // If token expired, clear it and prompt re-login
+        if (response.status === 401) {
+          localStorage.removeItem('token');
+          localStorage.removeItem('user');
+          throw new Error('Your session has expired. Please log in again.');
+        }
         throw new Error(data.message || data.detail || 'Failed to create meeting');
       }
 
@@ -78,7 +93,7 @@ export const CreateMeeting: React.FC<CreateMeetingProps> = ({ token }) => {
       <button 
         className="btn btn-secondary" 
         style={{ marginBottom: '24px', display: 'flex', alignItems: 'center', gap: '8px' }}
-        onClick={() => navigate('/')}
+        onClick={() => navigate('/dashboard')}
       >
         <ArrowLeft size={16} /> Back to Dashboard
       </button>

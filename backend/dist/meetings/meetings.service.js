@@ -274,10 +274,12 @@ let MeetingsService = class MeetingsService {
             this.aiService.extractActionItems(transcriptLines),
             this.aiService.detectRisks(transcriptLines),
         ]);
-        await this.prisma.actionItem.deleteMany({ where: { meetingId } });
-        if (aiActionItems.length > 0) {
+        const existingActionItems = await this.prisma.actionItem.findMany({ where: { meetingId } });
+        const existingActionTexts = new Set(existingActionItems.map(item => item.text.toLowerCase().trim()));
+        const newActionItems = aiActionItems.filter(item => !existingActionTexts.has(item.text.toLowerCase().trim()));
+        if (newActionItems.length > 0) {
             await this.prisma.actionItem.createMany({
-                data: aiActionItems.map(item => ({
+                data: newActionItems.map(item => ({
                     meetingId,
                     text: item.text,
                     assigneeName: item.assigneeName || null,
@@ -286,10 +288,12 @@ let MeetingsService = class MeetingsService {
                 })),
             });
         }
-        await this.prisma.risk.deleteMany({ where: { meetingId } });
-        if (aiRisks.length > 0) {
+        const existingRisks = await this.prisma.risk.findMany({ where: { meetingId } });
+        const existingRiskTexts = new Set(existingRisks.map(risk => risk.text.toLowerCase().trim()));
+        const newRisks = aiRisks.filter(risk => !existingRiskTexts.has(risk.text.toLowerCase().trim()));
+        if (newRisks.length > 0) {
             await this.prisma.risk.createMany({
-                data: aiRisks.map(risk => ({
+                data: newRisks.map(risk => ({
                     meetingId,
                     text: risk.text,
                     severity: risk.severity,
@@ -341,9 +345,6 @@ let MeetingsService = class MeetingsService {
         let res;
         if (platform === 'clickup') {
             res = await this.integrationsService.createClickUpTask(actionItem.text, taskNotes);
-        }
-        else if (platform === 'trello') {
-            res = await this.integrationsService.createTrelloCard(actionItem.text, taskNotes);
         }
         if (res && res.status === 'error') {
             throw new Error(res.message || `Failed to sync to ${platform}`);
@@ -427,7 +428,7 @@ let MeetingsService = class MeetingsService {
     async translateText(text, sourceLang, targetLang) {
         return this.aiService.translateText(text, sourceLang, targetLang);
     }
-    async answerMeetingQuestion(meetingId, question, askerName) {
+    async answerMeetingQuestion(meetingId, question, askerName, languageCode) {
         const meeting = await this.prisma.meeting.findUnique({
             where: { id: meetingId },
             include: { transcripts: { orderBy: { timestamp: 'asc' } } },
@@ -436,7 +437,7 @@ let MeetingsService = class MeetingsService {
             throw new Error('Meeting not found');
         }
         const transcriptLines = meeting.transcripts.map(t => `${t.speakerName}: ${t.text}`);
-        const aiResult = await this.aiService.answerQuestion(meeting.title, transcriptLines, question);
+        const aiResult = await this.aiService.answerQuestion(meeting.title, transcriptLines, question, languageCode);
         const segment = await this.prisma.transcript.create({
             data: {
                 meetingId,
@@ -459,6 +460,12 @@ let MeetingsService = class MeetingsService {
         }
         const transcriptLines = meeting.transcripts.map(t => `${t.speakerName}: ${t.text}`);
         return this.aiService.answerQuestion(meeting.title, transcriptLines, question);
+    }
+    async updateActionItem(id, data) {
+        return this.prisma.actionItem.update({
+            where: { id },
+            data,
+        });
     }
 };
 exports.MeetingsService = MeetingsService;

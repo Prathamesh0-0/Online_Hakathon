@@ -141,7 +141,9 @@ let MeetingsGateway = MeetingsGateway_1 = class MeetingsGateway {
             setTimeout(async () => {
                 try {
                     this.logger.log(`Detected question in transcript for AI Copilot in meeting ${meetingId}: "${text}"`);
-                    const aiSegment = await this.meetingsService.answerMeetingQuestion(meetingId, text, speakerName);
+                    const result = await this.meetingsService.answerMeetingQuestion(meetingId, text, speakerName, languageCode);
+                    const aiSegment = result.segment;
+                    const diagram = result.diagram;
                     let ttsAudio = '';
                     try {
                         ttsAudio = await this.aiService.generateSpeech(aiSegment.text, 'en-IN');
@@ -151,6 +153,7 @@ let MeetingsGateway = MeetingsGateway_1 = class MeetingsGateway {
                     }
                     this.server.to(meetingId).emit('transcriptAdded', {
                         ...aiSegment,
+                        diagram,
                         ttsAudio,
                     });
                 }
@@ -179,12 +182,12 @@ let MeetingsGateway = MeetingsGateway_1 = class MeetingsGateway {
         }
     }
     async handleAskAiQuestion(client, data) {
-        const { meetingId, question, askerName } = data;
-        this.logger.log(`Direct Q&A in ${meetingId} from ${askerName}: "${question}"`);
+        const { meetingId, question, askerName, languageCode } = data;
+        this.logger.log(`Direct Q&A in ${meetingId} from ${askerName}: "${question}" (Lang: ${languageCode || 'default'})`);
         const questionSegment = await this.meetingsService.addTranscriptSegment(meetingId, askerName, question);
         this.server.to(meetingId).emit('transcriptAdded', questionSegment);
         try {
-            const result = await this.meetingsService.answerMeetingQuestion(meetingId, question, askerName);
+            const result = await this.meetingsService.answerMeetingQuestion(meetingId, question, askerName, languageCode);
             const aiSegment = result.segment;
             const diagram = result.diagram;
             let ttsAudio = '';
@@ -271,6 +274,18 @@ let MeetingsGateway = MeetingsGateway_1 = class MeetingsGateway {
             candidate: data.candidate,
             sender: client.id,
         });
+    }
+    async handleUpdateActionItem(client, data) {
+        const { meetingId, actionItemId, assigneeName } = data;
+        try {
+            const updated = await this.meetingsService.updateActionItem(actionItemId, { assigneeName });
+            this.server.to(meetingId).emit('actionItemUpdated', updated);
+            return { status: 'success', actionItem: updated };
+        }
+        catch (e) {
+            this.logger.error(`Failed to update action item: ${e.message}`);
+            return { status: 'error', message: e.message };
+        }
     }
 };
 exports.MeetingsGateway = MeetingsGateway;
@@ -422,6 +437,14 @@ __decorate([
     __metadata("design:paramtypes", [socket_io_1.Socket, Object]),
     __metadata("design:returntype", void 0)
 ], MeetingsGateway.prototype, "handleWebRTCIceCandidate", null);
+__decorate([
+    (0, websockets_1.SubscribeMessage)('updateActionItem'),
+    __param(0, (0, websockets_1.ConnectedSocket)()),
+    __param(1, (0, websockets_1.MessageBody)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [socket_io_1.Socket, Object]),
+    __metadata("design:returntype", Promise)
+], MeetingsGateway.prototype, "handleUpdateActionItem", null);
 exports.MeetingsGateway = MeetingsGateway = MeetingsGateway_1 = __decorate([
     (0, websockets_1.WebSocketGateway)({
         cors: {

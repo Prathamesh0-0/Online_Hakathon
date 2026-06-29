@@ -6,6 +6,7 @@ import { TeamsModule } from './teams/teams.module';
 import { EmailModule } from './email/email.module';
 import { IntegrationsModule } from './integrations/integrations.module';
 import { LivekitModule } from './livekit/livekit.module';
+import { RecordingsModule } from './recordings/recordings.module';
 
 @Module({
   imports: [
@@ -16,6 +17,7 @@ import { LivekitModule } from './livekit/livekit.module';
     EmailModule,
     IntegrationsModule,
     LivekitModule,
+    RecordingsModule,
   ],
   controllers: [],
   providers: [],

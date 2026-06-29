@@ -1,0 +1,25 @@
+[
+  {
+    "id": "1782729157294-mn9m6gm5a",
+    "meetingId": "324846f4-1e21-40ff-9775-c6914d6e7a9b",
+    "meetingTitle": "meet",
+    "createdAt": "2026-06-29T10:32:37.322Z",
+    "duration": 180,
+    "fileUrl": "http://localhost:5000/recordings/file/1782729157294-mn9m6gm5a.webm",
+    "fileName": "1782729157294-mn9m6gm5a.webm",
+    "fileSize": 18040647,
+    "createdBy": "soham sirpurwar",
+    "accessCode": "855322"
+  },
+  {
+    "id": "1782719206260-qtws2afsy",
+    "meetingId": "fdf84d01-f744-4416-985e-4a73e0af706a",
+    "meetingTitle": "meet",
+    "createdAt": "2026-06-29T07:46:46.266Z",
+    "duration": 16,
+    "fileUrl": "http://localhost:5000/recordings/file/1782719206260-qtws2afsy.webm",
+    "fileName": "1782719206260-qtws2afsy.webm",
+    "fileSize": 1591244,
+    "createdBy": "soham sirpurwar"
+  }
+]

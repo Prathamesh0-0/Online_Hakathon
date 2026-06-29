@@ -6,7 +6,8 @@ export const useSpeechRecognition = (
   meetingId: string,
   isMicOn: boolean,
   userName: string,
-  lang: string = 'en-US'
+  lang: string = 'en-US',
+  isAiSpeaking: boolean = false
 ) => {
   const recognitionRef = useRef<any>(null);
   const [interimTranscript, setInterimTranscript] = useState('');
@@ -35,6 +36,8 @@ export const useSpeechRecognition = (
     recognition.lang = lang;
 
     recognition.onresult = (event: any) => {
+      if (isAiSpeaking) return; // Ignore input while AI is speaking
+
       let finalTranscript = '';
       let currentInterim = '';
 
@@ -66,7 +69,7 @@ export const useSpeechRecognition = (
     };
 
     recognition.onend = () => {
-      if (recognitionRef.current && isMicOn) {
+      if (recognitionRef.current && isMicOn && !isAiSpeaking) {
         try {
           recognitionRef.current.start();
         } catch (e) {}
@@ -75,7 +78,7 @@ export const useSpeechRecognition = (
 
     recognitionRef.current = recognition;
 
-    if (isMicOn) {
+    if (isMicOn && !isAiSpeaking) {
       try {
         recognitionRef.current.start();
       } catch (e) {}
@@ -92,7 +95,7 @@ export const useSpeechRecognition = (
         recognitionRef.current.stop();
       }
     };
-  }, [socket, meetingId, isMicOn, userName, lang]);
+  }, [socket, meetingId, isMicOn, userName, lang, isAiSpeaking]);
 
   return { interimTranscript };
 };

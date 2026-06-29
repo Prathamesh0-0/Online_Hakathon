@@ -75,10 +75,40 @@ To maintain a tight, high-impact scope for a hackathon or college MVP, we priori
 
 ## Setup & Running Guide
 
-### 1. Prerequisites
-Make sure you have [Node.js](https://nodejs.org/) (v18 or higher) and [Python](https://www.python.org/) (v3.10 or higher) installed.
+There are two ways to setup and run the application: **Quick Start (Root Folder)** or **Manual Component Start (Backend / Frontend separately)**.
 
-### 2. Configure Environment Variables
+---
+
+### Method A: Quick Start (Root Folder)
+You can set up and run the entire project (both backend and frontend) directly from the root directory:
+
+1. **Install Root and Project Dependencies**:
+   ```bash
+   npm install
+   npm run install:all
+   ```
+
+2. **Configure Environment Variables**:
+   Create or verify the `.env` file in the `backend/` directory:
+   ```env
+   PORT=5000
+   DATABASE_URL="sqlite:///./dev.db"
+   JWT_SECRET="super-secret-copilot-key-change-in-production"
+   GROQ_API_KEY=""
+   GEMINI_API_KEY=""
+   ```
+
+3. **Run the Project**:
+   ```bash
+   npm run dev
+   ```
+   This will concurrently start the backend server on [http://localhost:5000](http://localhost:5000) and the frontend dev server on [http://localhost:5173](http://localhost:5173).
+
+---
+
+### Method B: Manual Component Start
+
+#### 1. Configure Environment Variables
 Create or verify the `.env` file in the `backend/` directory:
 ```env
 PORT=5000
@@ -89,7 +119,7 @@ GEMINI_API_KEY=""
 ```
 *Note: If no API keys are provided, the app will run in **Mock AI Mode**, generating fully structured outputs so you can test all features.*
 
-### 3. Initialize & Start Backend
+#### 2. Initialize & Start Backend
 Navigate to the `backend/` directory, install packages, and start the development server:
 ```bash
 cd backend
@@ -98,7 +128,7 @@ python -m uvicorn main:socket_app --port 5000 --reload
 ```
 The FastAPI server starts on [http://localhost:5000](http://localhost:5000). Swagger documentation is available at [http://localhost:5000/docs](http://localhost:5000/docs).
 
-### 4. Start Frontend
+#### 3. Start Frontend
 Navigate to the `frontend/` directory, install packages, and start the dev server:
 ```bash
 cd frontend
@@ -106,3 +136,4 @@ npm install --legacy-peer-deps
 npm run dev
 ```
 Open [http://localhost:5173](http://localhost:5173) in your browser.
+

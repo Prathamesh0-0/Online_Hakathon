@@ -75,6 +75,7 @@ export declare class MeetingsGateway implements OnGatewayConnection, OnGatewayDi
         meetingId: string;
         question: string;
         askerName: string;
+        languageCode?: string;
     }): Promise<{
         status: string;
         answer: string;
@@ -142,4 +143,30 @@ export declare class MeetingsGateway implements OnGatewayConnection, OnGatewayDi
         candidate: any;
         meetingId: string;
     }): void;
+    handleUpdateActionItem(client: Socket, data: {
+        meetingId: string;
+        actionItemId: string;
+        assigneeName: string;
+    }): Promise<{
+        status: string;
+        actionItem: {
+            id: string;
+            createdAt: Date;
+            updatedAt: Date;
+            status: import(".prisma/client").$Enums.ActionItemStatus;
+            text: string;
+            meetingId: string;
+            assigneeName: string | null;
+            dueDate: Date | null;
+            externalId: string | null;
+            externalUrl: string | null;
+            externalPlatform: string | null;
+            assigneeId: string | null;
+        };
+        message?: undefined;
+    } | {
+        status: string;
+        message: any;
+        actionItem?: undefined;
+    }>;
 }

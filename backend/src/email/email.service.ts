@@ -23,7 +23,7 @@ export class EmailService {
       port: parseInt(process.env.SMTP_PORT || '587', 10),
       secure: false, // TLS via STARTTLS on port 587
       auth: {
-        user: process.env.SMTP_USER || process.env.JIRA_EMAIL,
+        user: process.env.SMTP_USER,
         pass: process.env.SMTP_PASS,
       },
     });
@@ -91,7 +91,7 @@ export class EmailService {
       joinLink,
     } = dto;
 
-    const senderEmail = process.env.SMTP_USER || process.env.JIRA_EMAIL || 'noreply@teamsspace.app';
+    const senderEmail = process.env.SMTP_USER || 'noreply@teamsspace.app';
     const formattedDate = scheduledAt
       ? new Date(scheduledAt).toLocaleString('en-US', {
           weekday: 'long',

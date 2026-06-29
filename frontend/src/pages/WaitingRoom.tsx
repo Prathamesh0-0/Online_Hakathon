@@ -1,6 +1,7 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { io, Socket } from 'socket.io-client';
+import { API_URL } from '../config';
 import { Video, VideoOff, Mic, MicOff, Clock, User, AlertCircle, RefreshCw } from 'lucide-react';
 
 export const WaitingRoom: React.FC = () => {
@@ -26,7 +27,7 @@ export const WaitingRoom: React.FC = () => {
     }
 
     // Connect to backend Socket.IO gateway
-    const socket = io('http://localhost:5000');
+    const socket = io(API_URL);
     socketRef.current = socket;
 
     socket.on('connect', () => {
