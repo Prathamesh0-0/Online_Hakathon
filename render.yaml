@@ -10,19 +10,18 @@ services:
       - key: PORT
         value: 5000
       - key: DATABASE_URL
-        fromDatabase:
-          name: meeting-copilot-db
-          property: connectionString
+        sync: false # Render will prompt you to enter your Supabase URL
       - key: REDIS_URL
         fromService:
           type: redis
           name: meeting-copilot-redis
           property: connectionString
       - key: QDRANT_URL
-        value: http://meeting-copilot-qdrant:6333
+        sync: false # Render will prompt you to enter your Qdrant Cloud URL
+      - key: QDRANT_API_KEY
+        sync: false # Render will prompt you to enter your Qdrant Cloud API Key
       - key: JWT_SECRET
         generateValue: true
-      # The following are required API keys. Render will prompt you for these values during setup:
       - key: GROQ_API_KEY
         sync: false
       - key: GEMINI_API_KEY
@@ -33,17 +32,16 @@ services:
         sync: false
       - key: LIVEKIT_URL
         sync: false
-
-  # Qdrant Vector DB (Self-hosted docker container)
-  - type: web
-    name: meeting-copilot-qdrant
-    runtime: image
-    image:
-      url: docker.io/qdrant/qdrant:latest
-    plan: free
-    envVars:
-      - key: PORT
-        value: 6333
+      - key: RESEND_API_KEY
+        sync: false
+      - key: SMTP_HOST
+        value: "smtp.gmail.com"
+      - key: SMTP_PORT
+        value: "587"
+      - key: SMTP_USER
+        sync: false
+      - key: SMTP_PASS
+        sync: false
 
   # Frontend static web site
   - type: web
@@ -58,13 +56,8 @@ services:
           name: meeting-copilot-backend
           property: host
 
-  # Redis cache/pub-sub
+  # Redis cache/pub-sub (Required for FastAPI socket gateway)
   - type: redis
     name: meeting-copilot-redis
     plan: free
     ipAllowList: []
-
-databases:
-  # Primary PostgreSQL Database
-  - name: meeting-copilot-db
-    plan: free
