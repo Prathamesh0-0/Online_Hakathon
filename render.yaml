@@ -45,8 +45,9 @@ services:
         value: 6333
 
   # Frontend static web site
-  - type: static
+  - type: web
     name: meeting-copilot-frontend
+    runtime: static
     buildCommand: cd frontend && npm install --legacy-peer-deps && npm run build
     staticPublishPath: frontend/dist
     envVars:
