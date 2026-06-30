@@ -14,7 +14,8 @@ services:
           name: meeting-copilot-db
           property: connectionString
       - key: REDIS_URL
-        fromRedis:
+        fromService:
+          type: redis
           name: meeting-copilot-redis
           property: connectionString
       - key: QDRANT_URL
@@ -44,12 +45,10 @@ services:
         value: 6333
 
   # Frontend static web site
-  - type: web
+  - type: static
     name: meeting-copilot-frontend
-    env: static
-    plan: free
     buildCommand: cd frontend && npm install --legacy-peer-deps && npm run build
-    publishDir: frontend/dist
+    staticPublishPath: frontend/dist
     envVars:
       - key: VITE_API_URL
         fromService:
@@ -57,12 +56,12 @@ services:
           name: meeting-copilot-backend
           property: host
 
+  # Redis cache/pub-sub
+  - type: redis
+    name: meeting-copilot-redis
+    plan: free
+
 databases:
   # Primary PostgreSQL Database
   - name: meeting-copilot-db
-    plan: free
-
-redis:
-  # Redis cache/pub-sub
-  - name: meeting-copilot-redis
     plan: free
