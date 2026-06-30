@@ -1,0 +1,68 @@
+services:
+  # Python Backend Service
+  - type: web
+    name: meeting-copilot-backend
+    env: docker
+    dockerfilePath: backend/Dockerfile
+    dockerContext: backend
+    plan: free
+    envVars:
+      - key: PORT
+        value: 5000
+      - key: DATABASE_URL
+        fromDatabase:
+          name: meeting-copilot-db
+          property: connectionString
+      - key: REDIS_URL
+        fromRedis:
+          name: meeting-copilot-redis
+          property: connectionString
+      - key: QDRANT_URL
+        value: http://meeting-copilot-qdrant:6333
+      - key: JWT_SECRET
+        generateValue: true
+      # The following are required API keys. Render will prompt you for these values during setup:
+      - key: GROQ_API_KEY
+        sync: false
+      - key: GEMINI_API_KEY
+        sync: false
+      - key: LIVEKIT_API_KEY
+        sync: false
+      - key: LIVEKIT_API_SECRET
+        sync: false
+      - key: LIVEKIT_URL
+        sync: false
+
+  # Qdrant Vector DB (Self-hosted docker container)
+  - type: web
+    name: meeting-copilot-qdrant
+    env: docker
+    dockerImage: qdrant/qdrant:latest
+    plan: free
+    envVars:
+      - key: PORT
+        value: 6333
+
+  # Frontend static web site
+  - type: web
+    name: meeting-copilot-frontend
+    env: static
+    plan: free
+    buildCommand: cd frontend && npm install --legacy-peer-deps && npm run build
+    publishDir: frontend/dist
+    envVars:
+      - key: VITE_API_URL
+        fromService:
+          type: web
+          name: meeting-copilot-backend
+          property: host
+
+databases:
+  # Primary PostgreSQL Database
+  - name: meeting-copilot-db
+    plan: free
+
+redis:
+  # Redis cache/pub-sub
+  - name: meeting-copilot-redis
+    plan: free
