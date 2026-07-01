@@ -13,6 +13,10 @@ const getFormattedApiUrl = (url: string) => {
     cleaned = cleaned.slice(0, -1);
   }
   if (cleaned && !cleaned.startsWith('http://') && !cleaned.startsWith('https://')) {
+    // If the URL has no dot (missing top-level domain suffix like .com), append .onrender.com
+    if (!cleaned.includes('.') && cleaned !== 'localhost' && cleaned !== '127.0.0.1') {
+      cleaned = `${cleaned}.onrender.com`;
+    }
     cleaned = `https://${cleaned}`;
   }
   return cleaned;
