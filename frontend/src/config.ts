@@ -1,4 +1,4 @@
-const rawApiUrl = import.meta.env.VITE_API_URL || 'https://online-hakathon-c5cv.onrender.com';
+const rawApiUrl = import.meta.env.VITE_API_URL || 'https://meeting-copilot-backend-5okc.onrender.com';
 
 const getFormattedApiUrl = (url: string) => {
   let cleaned = url.trim();
