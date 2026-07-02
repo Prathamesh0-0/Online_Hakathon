@@ -13,6 +13,16 @@ interface MeetingViewProps {
   onBack: () => void;
 }
 
+const safeParseArray = (jsonStr: string | null | undefined): any[] => {
+  if (!jsonStr || jsonStr === 'null') return [];
+  try {
+    const parsed = JSON.parse(jsonStr);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch (e) {
+    return [];
+  }
+};
+
 export const MeetingView: React.FC<MeetingViewProps> = ({ token, meetingId, currentUser, onBack }) => {
   const [meeting, setMeeting] = useState<any>(null);
   const [transcripts, setTranscripts] = useState<any[]>([]);
@@ -1354,14 +1364,10 @@ export const MeetingView: React.FC<MeetingViewProps> = ({ token, meetingId, curr
                   <h3 style={{ fontSize: '0.9rem', fontWeight: 700, color: 'var(--text-primary)', margin: 0 }}>Key Decisions</h3>
                 </div>
                 <ul style={{ paddingLeft: '16px', color: 'var(--text-secondary)', display: 'flex', flexDirection: 'column', gap: '8px', fontSize: '0.85rem', lineHeight: '1.5', margin: 0 }}>
-                  {meeting?.summary?.keyDecisions ? (
-                    JSON.parse(meeting.summary.keyDecisions).length > 0 ? (
-                      JSON.parse(meeting.summary.keyDecisions).map((decision: string, idx: number) => (
-                        <li key={idx}>{decision}</li>
-                      ))
-                    ) : (
-                      <li style={{ color: 'var(--text-muted)', listStyle: 'none', marginLeft: '-16px' }}>No decisions recorded.</li>
-                    )
+                  {safeParseArray(meeting?.summary?.keyDecisions).length > 0 ? (
+                    safeParseArray(meeting.summary.keyDecisions).map((decision: string, idx: number) => (
+                      <li key={idx}>{decision}</li>
+                    ))
                   ) : (
                     <li style={{ color: 'var(--text-muted)', listStyle: 'none', marginLeft: '-16px' }}>No decisions recorded.</li>
                   )}
@@ -1380,14 +1386,10 @@ export const MeetingView: React.FC<MeetingViewProps> = ({ token, meetingId, curr
                   <h3 style={{ fontSize: '0.9rem', fontWeight: 700, color: 'var(--text-primary)', margin: 0 }}>Next Steps</h3>
                 </div>
                 <ul style={{ paddingLeft: '16px', color: 'var(--text-secondary)', display: 'flex', flexDirection: 'column', gap: '8px', fontSize: '0.85rem', lineHeight: '1.5', margin: 0 }}>
-                  {meeting?.summary?.nextSteps ? (
-                    JSON.parse(meeting.summary.nextSteps).length > 0 ? (
-                      JSON.parse(meeting.summary.nextSteps).map((step: string, idx: number) => (
-                        <li key={idx}>{step}</li>
-                      ))
-                    ) : (
-                      <li style={{ color: 'var(--text-muted)', listStyle: 'none', marginLeft: '-16px' }}>No next steps recorded.</li>
-                    )
+                  {safeParseArray(meeting?.summary?.nextSteps).length > 0 ? (
+                    safeParseArray(meeting.summary.nextSteps).map((step: string, idx: number) => (
+                      <li key={idx}>{step}</li>
+                    ))
                   ) : (
                     <li style={{ color: 'var(--text-muted)', listStyle: 'none', marginLeft: '-16px' }}>No next steps recorded.</li>
                   )}
@@ -1406,8 +1408,8 @@ export const MeetingView: React.FC<MeetingViewProps> = ({ token, meetingId, curr
                   <h3 style={{ fontSize: '0.9rem', fontWeight: 700, color: 'var(--text-primary)', margin: 0 }}>Key Takeaways</h3>
                 </div>
                 <ul style={{ paddingLeft: '16px', color: 'var(--text-secondary)', display: 'flex', flexDirection: 'column', gap: '8px', fontSize: '0.85rem', lineHeight: '1.5', margin: 0 }}>
-                  {meeting?.summary?.keyTakeaways ? (
-                    JSON.parse(meeting.summary.keyTakeaways).map((takeaway: string, idx: number) => (
+                  {safeParseArray(meeting?.summary?.keyTakeaways).length > 0 ? (
+                    safeParseArray(meeting.summary.keyTakeaways).map((takeaway: string, idx: number) => (
                       <li key={idx}>{takeaway}</li>
                     ))
                   ) : (
@@ -1863,7 +1865,7 @@ export const MeetingView: React.FC<MeetingViewProps> = ({ token, meetingId, curr
                 {[
                   { label: 'Time Management', emoji: '⏱️', score: 88 },
                   { label: 'Engagement', emoji: '🤝', score: analytics?.engagementScore || 90 },
-                  { label: 'Decision Clarity', emoji: '💡', score: Math.min(100, 80 + (JSON.parse(meeting?.summary?.keyDecisions || '[]').length * 5)) },
+                  { label: 'Decision Clarity', emoji: '💡', score: Math.min(100, 80 + (safeParseArray(meeting?.summary?.keyDecisions).length * 5)) },
                   { label: 'Task Coverage', emoji: '✅', score: 100 },
                 ].map((metric) => (
                   <div key={metric.label}>

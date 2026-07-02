@@ -5,6 +5,9 @@ from app.api.endpoints.livekit import router as livekit_router
 from app.api.endpoints.ai import router as ai_router
 from app.api.endpoints.analytics import router as analytics_router
 from app.api.endpoints.teams import router as teams_router
+from app.api.endpoints.email import router as email_router
+from app.api.endpoints.integrations import router as integrations_router
+from app.api.endpoints.recordings import router as recordings_router
 
 api_router = APIRouter()
 
@@ -15,3 +18,6 @@ api_router.include_router(livekit_router, prefix="/livekit", tags=["livekit"])
 api_router.include_router(ai_router, prefix="/ai", tags=["ai"])
 api_router.include_router(analytics_router, prefix="/analytics", tags=["analytics"])
 api_router.include_router(teams_router, prefix="/teams", tags=["teams"])
+api_router.include_router(email_router, prefix="/email", tags=["email"])
+api_router.include_router(integrations_router, prefix="/integrations", tags=["integrations"])
+api_router.include_router(recordings_router, prefix="/recordings", tags=["recordings"])
