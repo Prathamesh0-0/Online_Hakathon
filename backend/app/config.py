@@ -49,3 +49,10 @@ class Settings(BaseSettings):
     )
 
 settings = Settings()
+
+# Clean up any accidental surrounding quotes from env variables (common copy-paste issue)
+for key, value in list(settings.__dict__.items()):
+    if isinstance(value, str):
+        cleaned = value.strip().strip('"').strip("'")
+        setattr(settings, key, cleaned)
+

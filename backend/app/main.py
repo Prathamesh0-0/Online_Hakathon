@@ -90,6 +90,11 @@ app.add_middleware(
 # 4. Include REST endpoints router
 app.include_router(api_router)
 
+@app.get("/")
+def read_root():
+    return {"status": "healthy", "message": "AI Meeting Copilot API is running"}
+
+
 # 5. Setup Socket.IO
 sio = socketio.AsyncServer(async_mode="asgi", cors_allowed_origins="*")
 register_socket_handlers(sio)
